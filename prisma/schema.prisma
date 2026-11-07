@@ -1,0 +1,760 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/kalshi_dutch_betting_dashboard/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String                 @unique
+  emailVerified         DateTime?
+  password              String?
+  image                 String?
+  role                  String                 @default("user")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  accounts              Account[]
+  sessions              Session[]
+  apiCredentials        ApiCredential[]
+  opportunities         Opportunity[]
+  betPlacements         BetPlacement[]
+  dutchBetTracks        DutchBetTrack[]
+  autoBetConfig         AutoBetConfig?
+  autoBetOrders         AutoBetOrder[]
+  soccerBetOrders       SoccerBetOrder[]
+  correctScoreBetOrders CorrectScoreBetOrder[]
+  correctScoreConfig    CorrectScoreConfig?
+  polymarketBetOrders   PolymarketBetOrder[]
+  polymarketConfig      PolymarketConfig?
+  goalsBetOrders        GoalsBetOrder[]
+  goalsMarketConfig     GoalsMarketConfig?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ApiCredential {
+  id          String    @id @default(cuid())
+  userId      String
+  apiKey      String    @default("")
+  apiSecret   String    @default("")
+  keyId       String    @default("")
+  privateKey  String    @default("") @db.Text
+  environment String    @default("demo")
+  isValid     Boolean   @default(false)
+  lastTested  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserPreference {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  oddsFormat String   @default("shares") // shares, payout, american
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model MarketData {
+  id             String   @id @default(cuid())
+  kalshiMarketId String
+  eventTicker    String
+  city           String
+  state          String
+  marketType     String   @default("high") // high or low
+  tempRangeLow   Float
+  tempRangeHigh  Float
+  yesPrice       Float // YES ask price (cost to buy) in cents
+  yesBid         Float    @default(0) // YES bid price (what you'd sell at) in cents
+  yesAsk         Float    @default(0) // YES ask price (cost to buy) in cents
+  noPrice        Float
+  volume         Int      @default(0)
+  openInterest   Int      @default(0)
+  lastPrice      Float    @default(0) // last traded price in cents
+  expirationTime DateTime
+  lastUpdated    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([city])
+  @@index([eventTicker])
+  @@index([expirationTime])
+  @@index([marketType])
+}
+
+model NwsForecast {
+  id           String   @id @default(cuid())
+  city         String
+  state        String
+  latitude     Float
+  longitude    Float
+  forecastHigh Float
+  forecastLow  Float?
+  forecastDate DateTime
+  retrievedAt  DateTime @default(now())
+  confidence   String   @default("normal")
+  source       String   @default("NWS")
+
+  @@index([city, forecastDate])
+}
+
+model Opportunity {
+  id               String         @id @default(cuid())
+  userId           String
+  city             String
+  state            String
+  nwsForecast      Float
+  totalStake       Float          @default(10)
+  guaranteedReturn Float
+  profitMargin     Float
+  status           String         @default("identified")
+  position1Ticker  String
+  position1Range   String
+  position1Odds    Float
+  position1Stake   Float
+  position2Ticker  String
+  position2Range   String
+  position2Odds    Float
+  position2Stake   Float
+  position3Ticker  String
+  position3Range   String
+  position3Odds    Float
+  position3Stake   Float
+  expirationTime   DateTime
+  analyzedAt       DateTime       @default(now())
+  createdAt        DateTime       @default(now())
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  betPlacements    BetPlacement[]
+
+  @@index([userId])
+  @@index([city])
+  @@index([profitMargin])
+}
+
+model BetPlacement {
+  id             String      @id @default(cuid())
+  userId         String
+  opportunityId  String
+  positionNumber Int
+  ticker         String
+  tempRange      String
+  stakeAmount    Float
+  odds           Float
+  isPlaced       Boolean     @default(false)
+  placedAt       DateTime?
+  notes          String?     @db.Text
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity    Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([opportunityId])
+}
+
+model PredictionHistory {
+  id             String    @id @default(cuid())
+  city           String
+  state          String
+  marketType     String    @default("high") // high or low
+  forecastDate   DateTime
+  nwsForecast    Float
+  actualTemp     Float?
+  forecastError  Float? // actual - forecast
+  absError       Float? // |actual - forecast|
+  dutchBetResult String? // won, lost, push, pending
+  centerRange    String?
+  dutchBetBins   String?   @db.Text // JSON: [{range: "86°F - 88°F", ticker: "..."}] - all 3 bins we bet on
+  centerOdds     Float?
+  profitMargin   Float?
+  wouldHaveWon   Boolean?
+  tempSource     String? // 'NWS-CF6', 'Kalshi-estimate', etc.
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([city])
+  @@index([forecastDate])
+  @@index([marketType])
+  @@index([city, marketType])
+}
+
+model BacktestEvent {
+  id              String   @id @default(cuid())
+  eventTicker     String   @unique
+  seriesTicker    String
+  city            String
+  forecastDate    DateTime
+  winningBin      String? // e.g. "82-83" — the bin where result=yes
+  winningBinFloor Float?
+  winningBinCap   Float?
+  totalBins       Int      @default(0)
+  binsJson        String   @db.Text // JSON of all bins with prices
+  enriched        Boolean  @default(false) // true when real trade prices fetched
+  createdAt       DateTime @default(now())
+
+  @@index([city])
+  @@index([forecastDate])
+  @@index([seriesTicker])
+  @@index([enriched])
+}
+
+model BacktestResult {
+  id            String   @id @default(cuid())
+  runId         String // groups results from same backtest run
+  city          String
+  forecastDate  DateTime
+  eventTicker   String
+  strategy      String // "center", "center+1", "center-1", "nws_sim"
+  nwsOffset     Int      @default(0) // simulated NWS error in degrees
+  binsSelected  String // JSON array of selected bin ranges
+  costAtBid     Float // cost to buy Dutch bet at bid prices
+  costAtAsk     Float // cost to buy Dutch bet at ask prices
+  winnerCovered Boolean // did our selection include the winning bin?
+  profitAtBid   Float // profit if winner covered, at bid prices
+  profitAtAsk   Float // profit if winner covered, at ask prices
+  createdAt     DateTime @default(now())
+
+  @@index([runId])
+  @@index([city])
+  @@index([strategy])
+}
+
+model DutchBetTrack {
+  id           String    @id @default(cuid())
+  userId       String
+  city         String
+  marketType   String    @default("HIGH") // HIGH or LOW
+  seriesTicker String // e.g. KXHIGHNY
+  eventTicker  String // e.g. KXHIGHNY-26JUN05
+  forecastDate DateTime // the date the temp prediction is for
+  nwsForecast  Float // what NWS predicted (e.g. 89)
+  centerBin    String // the bin NWS pointed to (e.g. "89-90")
+  selectedBins String    @db.Text // JSON: [{range, ticker, yesBid, yesAsk}]
+  totalCostBid Float? // sum of bid prices for selected bins
+  totalCostAsk Float? // sum of ask prices for selected bins
+  // Settlement fields (filled after event settles)
+  settled      Boolean   @default(false)
+  winningBin   String? // which bin actually won
+  actualTemp   String? // the actual temp range
+  won          Boolean? // did our 3-bin spread cover the winner?
+  profitBid    Float? // profit at bid prices ($1 - cost if won, -cost if lost)
+  profitAsk    Float? // profit at ask prices
+  settledAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventTicker, city, userId])
+  @@index([userId])
+  @@index([settled])
+  @@index([forecastDate])
+}
+
+model AutoBetConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  enabled         Boolean  @default(false)
+  mode            String   @default("one-click") // one-click or full-auto
+  minProfitMargin Float    @default(5.0) // minimum % profit margin
+  minRating       String   @default("good") // excellent, good, marginal
+  maxStakePerBet  Float    @default(10.0) // max $ per Dutch bet
+  maxDailySpend   Float    @default(100.0) // max $ total per day
+  slippageCents   Int      @default(2) // price buffer in cents added to each bin's bid
+  environment     String   @default("demo") // demo or production
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PolymarketConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  enabled         Boolean  @default(false)
+  mode            String   @default("one-click")
+  minProfitMargin Float    @default(3.0)
+  maxPicks        Int      @default(6)
+  minPicks        Int      @default(5)
+  minStakePerBet  Float    @default(2.0)
+  maxStakePerBet  Float    @default(5.0)
+  maxDailySpend   Float    @default(50.0)
+  slippageCents   Int      @default(1)
+  minEdgeCents    Float    @default(2.0) // min positive edge/EV (cents/unit) required to recommend a basket
+  minLowScore     Int      @default(0) // min low-scoring consensus score (0-100) to recommend; 0 = gate off
+  includeAnyOther Boolean  @default(false)
+  signatureType   Int      @default(0) // 0=EOA, 1=email/Magic proxy, 2=Gnosis Safe
+  funderAddress   String? // defaults to signing wallet address
+  paperMode       Boolean  @default(false) // paper/demo trading: track picks without placing real orders
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PolymarketBetOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  league         String   @default("Soccer")
+  eventSlug      String // e.g. auc-roc-sdr-2026-07-14-exact-score
+  eventId        String   @default("")
+  matchTitle     String
+  teamA          String
+  teamB          String
+  matchDate      String
+  numPicks       Int
+  scorelines     String   @db.Text // JSON [{tokenId, label, priceCents, contracts, orderId, status}]
+  totalCost      Float    @default(0) // actual cost in cents
+  combinedCost   Int // sum of leg buy prices (cents per unit)
+  dutchMargin    Float
+  contracts      Int      @default(0)
+  totalStake     Float
+  expectedPayout Float // contracts * 100
+  researchNote   String?  @db.Text
+  negRisk        Boolean  @default(true)
+  isPaper        Boolean  @default(false) // true = simulated paper/demo basket, no real order placed
+  status         String   @default("pending") // pending, filled, partial, failed
+  errorMessage   String?  @db.Text
+  settledResult  String? // won, lost, pending
+  settledPayout  Float?
+  winningScore   String?
+  finalScore     String? // actual final score of the match (e.g. "2-1"), set on settlement
+  netProfit      Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventSlug])
+}
+
+model CorrectScoreConfig {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  enabled          Boolean  @default(false)
+  mode             String   @default("one-click") // one-click (manual) or full-auto
+  minProfitMargin  Float    @default(3.0) // minimum % Dutch margin required
+  maxPicks         Int      @default(6) // max scorelines in a basket (sweet spot ~5-6)
+  minPicks         Int      @default(5) // min scorelines in a basket (5 = historical sweet spot)
+  minStakePerBet   Float    @default(2.0) // small test amount to start
+  maxStakePerBet   Float    @default(5.0) // max $ per correct-score basket
+  maxDailySpend    Float    @default(50.0) // max $ total per day
+  slippageCents    Int      @default(1) // price buffer in cents per leg
+  minResearchScore Float    @default(0.0) // min research confidence to auto-bet
+  minEdgeCents     Float    @default(2.0) // min positive edge/EV (cents/unit) required to recommend a basket
+  minLowScore      Int      @default(0) // min low-scoring consensus score (0-100) to recommend; 0 = gate off
+  environment      String   @default("demo") // demo or production
+  paperMode        Boolean  @default(false) // paper/demo trading: track picks without placing real orders
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CorrectScoreBetOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  league         String   @default("FIFA World Cup")
+  seriesTicker   String // e.g. KXWCSCORE
+  eventTicker    String // e.g. KXWCSCORE-26JUL02PORCRO
+  matchTitle     String // e.g. "Portugal vs Croatia"
+  teamA          String
+  teamB          String
+  matchDate      String // e.g. "2026-07-02"
+  numPicks       Int // number of scorelines covered in the basket
+  scorelines     String   @db.Text // JSON [{ticker, label, price, bidPrice, contracts, orderId, fillStatus}]
+  totalCost      Float    @default(0) // actual cost in cents
+  combinedCost   Int // sum of leg ask prices (cents per unit basket)
+  dutchMargin    Float // (100 - combinedCost) / combinedCost * 100
+  contracts      Int      @default(0) // uniform contract count per leg
+  totalStake     Float // total $ intended
+  expectedPayout Float // guaranteed return if any covered score hits (contracts * 100)
+  researchNote   String?  @db.Text // research rationale for the basket
+  environment    String   @default("demo")
+  isPaper        Boolean  @default(false) // true = simulated paper/demo basket, no real order placed
+  status         String   @default("pending") // pending, filled, partial, failed
+  errorMessage   String?  @db.Text
+  // Settlement
+  settledResult  String? // won, lost, pending
+  settledPayout  Float? // actual payout in cents
+  winningScore   String? // the scoreline that actually hit (e.g. "Portugal wins 2-1")
+  finalScore     String? // actual final score of the match, set on settlement (won or lost)
+  netProfit      Float? // profit/loss in cents
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventTicker])
+}
+
+model AutoBetOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  city           String
+  state          String   @default("")
+  marketType     String // high or low
+  eventTicker    String
+  forecastDate   String
+  nwsForecast    Float
+  profitMargin   Float
+  rating         String
+  totalStake     Float // total $ spent on 3 orders
+  totalCost      Float    @default(0) // actual cost in cents from Kalshi
+  expectedPayout Float // guaranteed return if any bin wins
+  environment    String   @default("demo")
+  status         String   @default("pending") // pending, filled, partial, failed, cancelled
+  errorMessage   String?  @db.Text
+  bins           String   @db.Text // JSON of 3 orders [{ticker, range, price, count, orderId, fillStatus}]
+  settledResult  String? // won, lost, pending
+  settledPayout  Float? // actual payout in cents if settled
+  actualTemp     Float? // actual observed temperature
+  tempSource     String? // 'NWS-CF6', 'Kalshi-estimate'
+  winningBin     String? // which bin range won (if any)
+  netProfit      Float? // profit/loss in cents (settledPayout - totalCost)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventTicker])
+}
+
+model SoccerBetOrder {
+  id              String   @id @default(cuid())
+  userId          String
+  league          String   @default("FIFA World Cup") // league name
+  seriesTicker    String // e.g. KXWCGAME
+  eventTicker     String // e.g. KXWCGAME-26JUN27JORARG
+  matchTitle      String // e.g. "Jordan vs Argentina"
+  teamA           String // home/first team
+  teamB           String // away/second team
+  matchDate       String // e.g. "2026-06-27"
+  favorite        String // which team is the favorite
+  // Dutch bet details: Favorite Win + Draw
+  favWinTicker    String // ticker for favorite win market
+  favWinPrice     Int // yes_ask price in cents
+  drawTicker      String // ticker for draw market
+  drawPrice       Int // yes_ask price in cents
+  combinedCost    Int // favWinPrice + drawPrice (cents)
+  dutchMargin     Float // (100 - combinedCost) / combinedCost * 100 = profit %
+  // Order execution
+  favWinContracts Int      @default(0) // number of fav-win contracts bought
+  drawContracts   Int      @default(0) // number of draw contracts bought
+  favWinOrderId   String? // Kalshi order ID for fav win
+  drawOrderId     String? // Kalshi order ID for draw
+  favWinBidPrice  Int? // actual bid price with slippage
+  drawBidPrice    Int? // actual bid price with slippage
+  totalStake      Float // total $ spent
+  totalCost       Float    @default(0) // actual cost in cents from Kalshi fills
+  expectedPayout  Float // guaranteed return if fav wins or draws ($1 per contract)
+  environment     String   @default("demo")
+  status          String   @default("pending") // pending, filled, partial, failed
+  errorMessage    String?  @db.Text
+  // Settlement
+  settledResult   String? // won, lost, pending
+  settledPayout   Float? // actual payout in cents
+  matchResult     String? // "team_a_win", "draw", "team_b_win"
+  netProfit       Float? // profit/loss in cents
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventTicker])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase A: Goals Markets (BTTS + Over/Under Total Goals) on Kalshi.
+// These are single-leg directional value bets (not Dutch baskets).
+// The historical edge lives on the LOW-SCORING side (games <=2 goals),
+// so the analyzer favours "Under 2.5" and "No BTTS" picks, sized by the
+// AI/Poisson model probability vs. the market-implied price.
+// ─────────────────────────────────────────────────────────────
+model GoalsMarketConfig {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  enabled        Boolean  @default(false)
+  minStakePerBet Float    @default(2.0) // default $ per goals bet
+  maxStakePerBet Float    @default(5.0) // max $ per goals bet
+  maxDailySpend  Float    @default(50.0) // max $ total per day
+  slippageCents  Int      @default(1) // price buffer in cents
+  minEdgeCents   Float    @default(3.0) // min positive edge (cents/unit) required to recommend
+  minLowScore    Int      @default(0) // min low-scoring consensus (0-100) to recommend an under/no-btts; 0 = off
+  lowScoringOnly Boolean  @default(true) // only recommend the low-scoring side (Under / No BTTS)
+  environment    String   @default("demo")
+  paperMode      Boolean  @default(true) // paper/demo by default (strictly paper project)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GoalsBetOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  league         String   @default("Soccer")
+  marketType     String // "btts" or "total"
+  line           Float? // for totals: the goal line (e.g. 2.5); null for BTTS
+  seriesTicker   String // e.g. KXMLSTOTAL
+  eventTicker    String // e.g. KXMLSTOTAL-26JUL31NYCTOR
+  marketTicker   String // the specific binary market bet on (e.g. ...-3 for Over 2.5)
+  matchTitle     String // "New York City vs Toronto"
+  teamA          String
+  teamB          String
+  matchDate      String // "2026-07-31"
+  side           String // "yes" or "no" (which side of the binary we bought)
+  source         String   @default("kalshi") // data source: kalshi | polymarket
+  pickLabel      String // human label e.g. "Under 2.5 Goals" / "No BTTS" / "Over 2.5 Goals"
+  entryPrice     Int // cost per contract in cents (the side's ask + slippage)
+  modelProb      Float? // model probability (0-1) of the bet winning at placement
+  edgeCents      Float? // modelled edge in cents/unit at placement
+  lowScore       Int? // low-scoring consensus (0-100) at placement
+  contracts      Int      @default(0)
+  totalStake     Float // total $ intended
+  totalCost      Float    @default(0) // actual cost in cents
+  expectedPayout Float // contracts * 100 if the bet wins
+  researchNote   String?  @db.Text
+  environment    String   @default("demo")
+  isPaper        Boolean  @default(true)
+  status         String   @default("pending") // pending, filled, partial, failed
+  errorMessage   String?  @db.Text
+  // Settlement
+  settledResult  String? // won, lost, pending
+  settledPayout  Float? // actual payout in cents
+  marketResult   String? // raw kalshi market result: yes | no
+  finalGoals     Int? // actual total goals if known
+  netProfit      Float? // profit/loss in cents
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventTicker])
+}
+
+// Calibration feedback loop: analyzes settled bet outcomes to derive corrections
+// (xG bias, confidence scaling, low-scoring threshold) that are fed back into the
+// research models over time. One "latest" row per scope; history preserved by row.
+model ModelCalibration {
+  id                  String   @id @default(cuid())
+  userId              String
+  scope               String   @default("global") // global | per-league key (future)
+  sampleSize          Int      @default(0) // settled baskets analyzed
+  scoredSample        Int      @default(0) // settled baskets with a parseable final score
+  wonCount            Int      @default(0)
+  lostCount           Int      @default(0)
+  winRate             Float    @default(0) // realized win rate of settled baskets (0-1)
+  impliedWinRate      Float    @default(0) // avg breakeven implied by basket combinedCost (0-1)
+  avgActualGoals      Float    @default(0) // mean total goals in settled matches
+  avgCoveredGoals     Float    @default(0) // mean total goals of covered scorelines (model target)
+  xgBias              Float    @default(0) // additive correction to expected total goals (actual - covered)
+  lowScoringThreshold Int      @default(2) // goals threshold defining "low-scoring"
+  lowScoringHitRate   Float    @default(0) // fraction of settled matches at/under threshold (0-1)
+  confidenceScale     Float    @default(1) // multiplier on model edge/confidence (realized/implied)
+  brierScore          Float? // where model probabilities are available (goals bets)
+  probSlope           Float? // reliability-curve slope fitted on settled model probabilities
+  probIntercept       Float? // reliability-curve intercept
+  probSample          Int      @default(0) // settled bets with a model probability used for the fit
+  isActive            Boolean  @default(true) // the latest applied calibration for the scope
+  notes               String?  @db.Text // JSON: per-source breakdown, goal buckets
+  computedAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([scope])
+  @@index([isActive])
+}
+
+/// AI shadow picks — the autonomous analyst's single best +EV selection per match,
+/// tracked in demo (paper) mode so its real hit-rate / ROI can be measured
+/// independently of the user's manual bets.
+model ShadowPick {
+  id       String @id @default(cuid())
+  userId   String
+  runId    String // groups every pick created by one autonomous run
+  app      String // goals | correct-score | polymarket-cs
+  source   String // kalshi | polymarket
+  league   String @default("")
+
+  matchKey   String // stable per-match identifier (event ticker / slug)
+  matchTitle String
+  teamA      String
+  teamB      String
+  matchDate  DateTime?
+
+  marketType   String // btts | total | scoreline-basket
+  line         Float?
+  side         String
+  pickLabel    String
+  marketTicker String?
+
+  entryPrice    Int // cents per contract
+  rawModelProb  Float? // model probability BEFORE reliability calibration
+  modelProb     Float // calibrated probability actually used for the EV decision
+  edgeCents     Float // calibrated edge in cents per contract
+  evPerContract Float // expected profit in cents per contract
+
+  expectedTotalGoals Float?
+  lowScore           Int?
+  rating             String @default("none")
+
+  contracts        Int
+  stakeCents       Int
+  payoutIfWinCents Int
+
+  researchNote String? @db.Text
+
+  status         String @default("open") // open | settled | void
+  settledResult  String? // won | lost | void
+  finalScore     String?
+  finalGoals     Int?
+  netProfitCents Int?
+  settledAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([app, matchKey])
+  @@index([userId, status])
+  @@index([runId])
+  @@index([app, status])
+  @@index([matchDate])
+}
+
+/// Third-party prediction feeds (FootyStats mathematical / FootyStats predictions /
+/// API-Football /predictions). Stored so their accuracy can be scored over time and
+/// fed back into every app's research prompt as a weighted external signal.
+model ExternalPrediction {
+  id     String @id @default(cuid())
+  source String // footystats_math | footystats | api_football
+
+  league     String  @default("")
+  matchKey   String // normalized "yyyy-mm-dd|home|away"
+  matchTitle String
+  teamA      String
+  teamB      String
+  matchDate  DateTime?
+
+  market      String // btts | over_under_2.5 | result | total_goals
+  prediction  String // yes | no | over | under | home | draw | away | <score>
+  line        Float?
+  probability Float? // 0..1 when the source publishes one
+  confidence  Int? // 0..100 when the source publishes one
+  advice      String? @db.Text
+  rawPayload  String? @db.Text
+
+  status       String @default("open") // open | settled | void
+  actualResult String?
+  correct      Boolean?
+  finalScore   String?
+  settledAt    DateTime?
+
+  fetchedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([source, matchKey, market])
+  @@index([source, status])
+  @@index([matchKey])
+  @@index([matchDate])
+}
+
+/// FootyStats "value" demo-bet tracker. Every FootyStats prediction is priced
+/// against FootyStats' embedded bookmaker odds; picks clearing an EV + probability
+/// threshold get a flat demo stake so their real-world performance can be tracked
+/// with full statistics. Kalshi/Polymarket prices are attached as a bonus
+/// comparison when an overlapping market exists.
+model ValuePick {
+  id        String  @id @default(cuid())
+  userId    String
+  runId     String  // groups picks created by one ingest run
+  selKey    String  @unique // stable per-selection key for idempotent upserts
+  fsMatchId String  // FootyStats match id (settlement lookup)
+
+  league     String    @default("")
+  matchKey   String    // orientation-independent match key (date|slugs)
+  matchTitle String
+  teamA      String
+  teamB      String
+  matchDate  DateTime?
+
+  market    String // ft_ou | ht_ou | 2h_ou | btts | ht_btts | 2h_btts | corners_ou | result | double_chance | dnb | win_to_nil | clean_sheet
+  selection String // human label, e.g. "Over 2.5 Goals", "BTTS Yes", "Home Win"
+  side      String // machine side: over|under|yes|no|home|draw|away|dc_1x|dc_12|dc_x2|dnb_home|dnb_away|wtn_home|wtn_away|cs_home|cs_away
+  line      Float?
+  model     String // footystats | poisson_xg
+
+  modelProb   Float // 0-1 model probability of this selection winning
+  odds        Float // decimal odds used for pricing
+  impliedProb Float // 1/odds (market implied, includes vig)
+  edge        Float // modelProb - impliedProb
+  evPerDollar Float // modelProb*odds - 1 (expected profit per $1 staked)
+
+  kalshiPrice Int? // cents, matching Kalshi market (bonus comparison)
+  polyPrice   Int? // cents, matching Polymarket market (bonus comparison)
+
+  stakeCents       Int
+  payoutIfWinCents Int
+
+  status         String    @default("open") // open | settled | void
+  result         String? // won | lost | void
+  finalScore     String? // "2-1"
+  finalDetail    String? // e.g. "HT 1-0, corners 11"
+  netProfitCents Int?
+  settledAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([runId])
+  @@index([status])
+  @@index([matchDate])
+  @@index([market])
+}
