@@ -1,0 +1,86 @@
+# The five recurring automation jobs (see docs/04_SCHEDULED_TASKS_AND_AUTOMATION.md).
+#
+# OFF BY DEFAULT. Nothing runs until ALL of these are set in
+# GitHub → Settings → Secrets and variables → Actions:
+#   secret   DUTCH_BASE_URL          e.g. https://bets.example.com  (no trailing slash)
+#   secret   DUTCH_AUTOMATION_SECRET same value as AUTOMATION_SECRET on the server
+#   variable DUTCH_AUTOMATION_ENABLED = true
+# Turn the Abacus scheduled tasks off when you enable this, or every job runs twice.
+#
+# GitHub cron is UTC. Times below are the Pacific schedule in PST (UTC-8);
+# during daylight time (PDT) each job runs one hour later local time. Runs can be
+# delayed several minutes by GitHub.
+
+name: Scheduled jobs
+
+on:
+  schedule:
+    - cron: '0 3,15 * * *'        # A  07:00, 19:00 PST  external predictions ingest
+    - cron: '0 5,17 * * *'        # B  09:00, 21:00 PST  AI shadow analyst
+    - cron: '30 3,9,15,21 * * *'  # C  every 6 h        grade + calibrate
+    - cron: '0 2,8,14,20 * * *'   # D  00/06/12/18 PST   value tracker pull
+    - cron: '15 0,6,12,18 * * *'  # E  04:15/10:15/...   value tracker grade
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run now
+        required: true
+        type: choice
+        options: [A-ingest, B-shadow, C-grade-calibrate, D-value-run, E-value-settle]
+
+concurrency:
+  group: scheduled-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: vars.DUTCH_AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BASE: ${{ secrets.DUTCH_BASE_URL }}
+      SECRET: ${{ secrets.DUTCH_AUTOMATION_SECRET }}
+      SCHEDULE: ${{ github.event.schedule }}
+      MANUAL: ${{ inputs.job }}
+    steps:
+      - name: Call endpoints
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then
+            echo "::error::DUTCH_BASE_URL or DUTCH_AUTOMATION_SECRET secret is missing"; exit 1
+          fi
+
+          FAILED=0
+          call() {  # call <path> [json-body]
+            local path="$1" body="${2:-}"
+            [ -n "$body" ] || body='{}'
+            local out code
+            out=$(curl -sS --max-time 900 -w '\n%{http_code}' -X POST "$BASE$path" \
+              -H "x-automation-secret: $SECRET" \
+              -H 'Content-Type: application/json' \
+              -H 'User-Agent: Mozilla/5.0 (compatible; automation-bot/1.0)' \
+              -d "$body") || true
+            code=$(echo "$out" | tail -n1)
+            echo "$path -> HTTP $code"
+            echo "$out" | sed '$d' | head -c 1500; echo
+            if [ "$code" = "504" ]; then
+              echo "::warning::$path timed out at the proxy; work usually finishes server-side"
+            elif [[ "$code" != 2* ]]; then
+              echo "::error::$path returned HTTP $code"; FAILED=1
+            fi
+          }
+
+          case "${MANUAL:-$SCHEDULE}" in
+            A-ingest|'0 3,15 * * *')             call /api/external-predictions/ingest ;;
+            B-shadow|'0 5,17 * * *')             call /api/shadow/run '{"limit":6}' ;;
+            C-grade-calibrate|'30 3,9,15,21 * * *')
+              # in this order; each step is idempotent so continue past failures
+              call /api/external-predictions/settle
+              call /api/shadow/settle
+              call /api/calibration/recompute ;;
+            D-value-run|'0 2,8,14,20 * * *')     call /api/value-tracker/run ;;
+            E-value-settle|'15 0,6,12,18 * * *') call /api/value-tracker/settle ;;
+            *) echo "::error::Unknown schedule '${MANUAL:-$SCHEDULE}'"; exit 1 ;;
+          esac
+          exit $FAILED

@@ -2,7 +2,7 @@
 
 ## Requirements
 
-Node.js 20 LTS (18 works), Yarn 1.x, PostgreSQL 14+, ~1 GB RAM for build (more is better), outbound HTTPS.
+Node.js 20+ LTS (built and tested on 22), Yarn 4 via Corepack (`corepack enable`), PostgreSQL 14+, ~1 GB RAM for build (more is better), outbound HTTPS.
 Stack: Next.js 14.2 (App Router), Prisma 6.7, NextAuth 4 (credentials, JWT), Tailwind/shadcn UI.
 
 ## A. Run locally
@@ -10,31 +10,25 @@ Stack: Next.js 14.2 (App Router), Prisma 6.7, NextAuth 4 (credentials, JWT), Tai
 ```bash
 cp .env.example .env      # fill DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL=http://localhost:3000, keys
 yarn install
-# IMPORTANT: edit prisma/schema.prisma first (see "Prisma fix" below)
 yarn prisma generate
 yarn prisma db push       # creates tables on an empty database
 yarn prisma db seed       # optional: scripts/safe-seed.ts (upserts, no deletes)
 yarn dev                  # http://localhost:3000
 ```
 
-## Prisma fix (required off Abacus)
+## Prisma (done)
 
-`prisma/schema.prisma` generator currently has:
-
-```prisma
-binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
-output = "/home/ubuntu/kalshi_dutch_betting_dashboard/nextjs_space/node_modules/.prisma/client"
-```
-
-On any other machine **delete the `output` line** (Prisma then uses the default `node_modules/.prisma/client`)
-and set `binaryTargets = ["native"]` (add e.g. `"debian-openssl-3.0.x"` or `"linux-musl-openssl-3.0.x"` if building in Docker for a different OS).
+The Abacus-only Prisma `output` path has been removed and `binaryTargets = ["native"]`, so the client
+generates into `node_modules/.prisma/client` on any machine. Add e.g. `"debian-openssl-3.0.x"` or
+`"linux-musl-openssl-3.0.x"` only when building in Docker for a different OS.
 
 ## Other Abacus-specific bits (safe to leave or remove)
 
 | Where | What | Action off Abacus |
 |---|---|---|
-| `next.config.js` | `distDir: process.env.NEXT_DIST_DIR`, `output: process.env.NEXT_OUTPUT_MODE`, error-reporter injection only in standalone | Leave; unset vars = normal `.next` build. Set `NEXT_OUTPUT_MODE=standalone` for Docker. |
-| `app/layout.tsx` | `<script src="https://apps.abacus.ai/chatllm/appllm-lib.js">` | Can remove. |
+| `next.config.js` | `distDir: process.env.NEXT_DIST_DIR`, `output: process.env.NEXT_OUTPUT_MODE` | Leave; unset vars = normal `.next` build. Set `NEXT_OUTPUT_MODE=standalone` for Docker. (Abacus error-reporter injection removed.) |
+| `app/layout.tsx` | Abacus `appllm-lib.js` script tag | Removed. |
+| `.yarnrc.yml` | Abacus global yarn cache folder | Removed; only `nodeLinker: node-modules` remains. |
 | `NEXTAUTH_URL` | Abacus injects it per environment | **You must set it** to your public URL. |
 | `ABACUSAI_API_KEY` | Abacus LLM | Keep (works anywhere) or switch provider (doc 05). |
 
@@ -44,7 +38,7 @@ and set `binaryTargets = ["native"]` (add e.g. `"debian-openssl-3.0.x"` or `"lin
 # 1. system packages
 sudo apt update && sudo apt install -y curl git nginx postgresql
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
-sudo npm i -g yarn pm2
+sudo npm i -g pm2 && sudo corepack enable
 
 # 2. database
 sudo -u postgres psql -c "CREATE USER dutch WITH PASSWORD '<DB_PASSWORD>';"
@@ -58,7 +52,7 @@ cp .env.example .env && nano .env
 #   NEXTAUTH_URL=https://bets.example.com
 #   NEXTAUTH_SECRET=$(openssl rand -base64 32)  ... plus API keys, AUTOMATION_SECRET, AUTOMATION_USER_EMAIL
 
-# 4. Prisma fix (above), then
+# 4. install + build
 yarn install
 yarn prisma generate
 yarn prisma db push          # only if NOT restoring a dump (step C)

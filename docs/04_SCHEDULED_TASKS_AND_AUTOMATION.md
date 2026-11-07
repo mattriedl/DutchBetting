@@ -85,7 +85,15 @@ Note for job C: `curl` returns 0 even on HTTP 504, so the chain continues — th
 On Abacus/Vercel-style hosting, `export const maxDuration = 300` caps a route at 300 s. On your own server
 (`next start` behind nginx) there is no cap, but set nginx `proxy_read_timeout 900s;` for `/api/` or long ingests will 504 at the proxy.
 
-## GitHub Actions alternative
+## GitHub Actions (ready in this repo)
+
+`.github/workflows/scheduled-jobs.yml` runs all five jobs (A–E) and can also be triggered by hand
+(Actions → Scheduled jobs → Run workflow → pick a job). It does nothing until you set, under
+Settings → Secrets and variables → Actions: secrets `DUTCH_BASE_URL` and `DUTCH_AUTOMATION_SECRET`,
+and variable `DUTCH_AUTOMATION_ENABLED` = `true`. Turn the Abacus tasks off at the same time.
+Its cron times are UTC set for PST; during PDT each job runs one hour later local time.
+
+Minimal single-job example:
 
 ```yaml
 # .github/workflows/value-tracker.yml

@@ -38,5 +38,6 @@
 | Sep 26 | Middleware covers all newer pages; 401 → login redirect on Value Tracker; stale/suspended picks auto-void. |
 | later | Value Tracker recalibrated: blend 40% model / 60% de-vigged market, EV ≥ 8%, odds 1.35–3.30 (see `lib/value-tracker.ts` constants and doc 03). |
 | Nov | Source backup + this documentation set. |
+| Nov 7 | Moved to GitHub/Claude. Removed Abacus-only Prisma output path, yarn cache config, layout script and error reporter; pinned Yarn 4.10.3; fixed `scripts/direct-ingest.ts` import that broke `yarn build`; added `CLAUDE.md` and the (disabled) scheduled-jobs workflow. |
 
 For exact current thresholds always trust the constants at the top of each `lib/*.ts` file over this table.

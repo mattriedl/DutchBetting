@@ -1,4 +1,4 @@
-import { ingestExternalPredictions } from '../lib/external-predictions.ts';
+import { ingestExternalPredictions } from '../lib/external-predictions';
 
 async function main() {
   console.log('Starting standalone ingest...');

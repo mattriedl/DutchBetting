@@ -1,7 +1,7 @@
 # 2. Code Reference
 
 Stack: React/TypeScript web app (Next.js 14 App Router), Prisma ORM on PostgreSQL, NextAuth (credentials +
-JWT), Tailwind + shadcn/ui components, Recharts/Chart.js/Plotly charts. Package manager: **yarn**.
+JWT), Tailwind + shadcn/ui components, Recharts/Chart.js/Plotly charts. Package manager: **Yarn 4 via Corepack** (`corepack enable` once; see `packageManager` in package.json).
 
 ## Directory layout
 
@@ -15,7 +15,7 @@ components/                                sidebar, header, calibration panel, u
 lib/                                       all business logic + external API clients
 prisma/schema.prisma                       database schema
 scripts/seed.ts, safe-seed.ts              create the test user (upsert, no deletes)
-scripts/direct-ingest.ts                   run Value Tracker ingest from the command line
+scripts/direct-ingest.ts                   run External Predictions ingest from the command line
 middleware.ts                              login redirect for protected pages
 ```
 

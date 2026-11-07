@@ -11,7 +11,8 @@ AI & API connections, moving to a new server, troubleshooting.
 ## Run locally
 
 ```bash
-cp .env.example .env        # fill in DATABASE_URL, NEXTAUTH_SECRET, API keys, etc.
+cp .env.example .env        # fill in DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, API keys, etc.
+corepack enable             # project uses Yarn 4 (see packageManager in package.json)
 yarn install
 yarn prisma generate
 yarn dev                    # http://localhost:3000
@@ -28,15 +29,9 @@ Build check: `yarn build`
 - `prisma/schema.prisma` — database schema
 - `middleware.ts` — every authenticated route must be listed here
 
-## Pushing to GitHub (first time)
+## Working notes
 
-```bash
-git init -b main
-git add .
-git commit -m "Initial backup"
-git remote add origin https://github.com/mattriedl/DutchBetting.git
-git push -u origin main
-```
+See [`CLAUDE.md`](CLAUDE.md) for the rules that are easy to break (middleware, paper/live, schema).
 
 ## Going live
 
