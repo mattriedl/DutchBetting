@@ -51,6 +51,8 @@ export interface PolyExactScoreEvent {
   league: string;           // human label derived from sport/series
   startDate: string;
   endDate: string;
+  /** Kick-off date (YYYY-MM-DD) as Polymarket reports it; follows reschedules, unlike the slug. */
+  eventDate: string;
   negRisk: boolean;
   negRiskMarketId: string;
   active: boolean;
@@ -166,6 +168,7 @@ function parseEvent(ev: any): PolyExactScoreEvent | null {
     league: leagueLabel(sport, seriesSlug),
     startDate: ev?.startDate ?? '',
     endDate: ev?.endDate ?? '',
+    eventDate: String(ev?.eventDate ?? ev?.startTime ?? '').slice(0, 10),
     negRisk: ev?.negRisk === true,
     negRiskMarketId: ev?.negRiskMarketID ?? ev?.negRiskMarketId ?? '',
     active: ev?.active !== false,

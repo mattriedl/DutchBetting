@@ -63,10 +63,10 @@ export async function POST(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const [tempDaily, soccerDaily, csDaily, goalsDaily] = await Promise.all([
-      prisma.autoBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } }, select: { totalCost: true } }),
-      prisma.soccerBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } }, select: { totalCost: true } }),
-      prisma.correctScoreBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } }, select: { totalCost: true } }),
-      prisma.goalsBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] }, isPaper: false }, select: { totalCost: true } }),
+      prisma.autoBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } }, select: { totalCost: true } }),
+      prisma.soccerBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } }, select: { totalCost: true } }),
+      prisma.correctScoreBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] }, isPaper: false }, select: { totalCost: true } }),
+      prisma.goalsBetOrder.findMany({ where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] }, isPaper: false }, select: { totalCost: true } }),
     ]);
     const dailySpentDollars = [...tempDaily, ...soccerDaily, ...csDaily, ...goalsDaily].reduce((s, o) => s + (o.totalCost ?? 0), 0) / 100;
 

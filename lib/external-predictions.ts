@@ -20,7 +20,7 @@
  */
 
 import { prisma } from '@/lib/db';
-import { fetchPredictions, fetchFinalScoreByTeams, fetchFinalScoreByFixtureId } from '@/lib/api-football';
+import { fetchPredictions, fetchFinalScoreByTeams, fetchFinalScoreByFixtureId, getApiFootballStatus } from '@/lib/api-football';
 import { fetchGoalsMatches, type GoalsMatch } from '@/lib/goals-markets';
 import { fetchPolymarketGoalsMatches } from '@/lib/polymarket-goals';
 
@@ -272,7 +272,7 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
 
 export interface IngestSummary {
   matchesConsidered: number;
-  apiFootball: { added: number; errors: number; enabled: boolean };
+  apiFootball: { added: number; errors: number; enabled: boolean; paused?: string };
   footystats: { added: number; matched: number; needsKey: boolean };
 }
 
@@ -283,7 +283,11 @@ export async function ingestExternalPredictions(): Promise<IngestSummary> {
   const fs = await ingestFootystats(matches);
   return {
     matchesConsidered: matches.length,
-    apiFootball: { ...af, enabled: !!process.env.API_FOOTBALL_KEY },
+    apiFootball: {
+      ...af,
+      enabled: !!process.env.API_FOOTBALL_KEY,
+      ...(getApiFootballStatus().paused ? { paused: getApiFootballStatus().reason } : {}),
+    },
     footystats: fs,
   };
 }

@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       where: {
         userId,
         createdAt: { gte: today },
-        status: { in: ['filled', 'partial'] },
+        status: { in: ['filled', 'partial', 'pending'] },
       },
       select: { totalCost: true },
     });

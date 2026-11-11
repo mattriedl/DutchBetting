@@ -42,13 +42,13 @@ const HIGH_CUTOFF_HOUR = 17; // 5 PM — daily high has occurred by now
  * Check if a market for a given city/date/type is still "bettable".
  *
  * Returns false (= skip this market) if:
+ *   - The city has no known timezone (fail closed)
  *   - The event date is TODAY in the city's local timezone, AND
  *   - The current local time has passed the cutoff for that market type
  *
  * Returns true (= market is fine to bet on) if:
  *   - The event date is in the future
  *   - The event date is today but the cutoff hasn't been reached yet
- *   - We can't determine the timezone (fail open, don't filter)
  */
 export function isMarketStillBettable(
   city: string,
@@ -56,13 +56,15 @@ export function isMarketStillBettable(
   marketType: string,   // 'high' or 'low'
 ): boolean {
   const tz = CITY_TIMEZONES[city];
-  if (!tz) return true; // Unknown city → don't filter
+  // Unknown city → NOT bettable. This guards real-money auto-bets, so fail closed: a new Kalshi
+  // city must be added to CITY_TIMEZONES before it can be auto-bet.
+  if (!tz) return false;
 
   // Get current date/time in the city's local timezone
   const now = new Date();
   const localDateStr = now.toLocaleDateString('en-CA', { timeZone: tz }); // YYYY-MM-DD format
   const localHour = parseInt(
-    now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
+    now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }),
     10
   );
 
@@ -100,7 +102,7 @@ export function getMarketTimingReason(
   const now = new Date();
   const localDateStr = now.toLocaleDateString('en-CA', { timeZone: tz });
   const localHour = parseInt(
-    now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
+    now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }),
     10
   );
 

@@ -87,7 +87,7 @@ export async function GET(req: Request) {
       
       // Get the appropriate forecast temperature
       const forecastTemp = mType === 'low' ? forecast?.forecastLow : forecast?.forecastHigh;
-      if (!forecastTemp) continue;
+      if (forecastTemp == null) continue; // 0°F is a valid forecast; only skip when missing
 
       // CRITICAL: Only use B-contracts (2° bins) for Dutch bet analysis
       // T-contracts are threshold/tail bets (≤X° or ≥Y°) that should NOT be in the Dutch bet

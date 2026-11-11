@@ -51,8 +51,12 @@ export async function resolvePendingPredictions(): Promise<number> {
   let resolvedCount = 0;
 
   try {
+    // Only days that are over everywhere we track. forecastDate is stored as midnight UTC of the
+    // market day; that day ends in US Pacific ~32 h later. Without this cutoff every History page
+    // load re-queried NWS + Kalshi for tomorrow's (unresolvable) forecasts.
+    const resolvableBefore = new Date(Date.now() - 30 * 60 * 60 * 1000);
     const pendingPredictions = await prisma.predictionHistory.findMany({
-      where: { dutchBetResult: 'pending' },
+      where: { dutchBetResult: 'pending', forecastDate: { lt: resolvableBefore } },
     });
 
     if (pendingPredictions.length === 0) return 0;

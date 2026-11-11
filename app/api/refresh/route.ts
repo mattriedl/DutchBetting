@@ -152,7 +152,7 @@ export async function POST() {
                 state: forecast.state,
                 latitude: coords.lat,
                 longitude: coords.lon,
-                forecastHigh: forecast.forecastHigh ?? 0,
+                forecastHigh: forecast.forecastHigh,
                 forecastLow: forecast.forecastLow,
                 forecastDate: forecastDateObj,
                 retrievedAt: new Date(),
@@ -378,7 +378,7 @@ export async function POST() {
         // Get today's spend
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const dailyOrders = await prisma.autoBetOrder.findMany({
-          where: { userId, createdAt: { gte: todayStart }, status: { in: ['filled', 'partial'] } },
+          where: { userId, createdAt: { gte: todayStart }, status: { in: ['filled', 'partial', 'pending'] } },
           select: { totalCost: true },
         });
         let dailySpentCents = dailyOrders.reduce((s, o) => s + (o.totalCost ?? 0), 0);
@@ -424,8 +424,8 @@ export async function POST() {
             const fc = fcLookup[`${city}__${eventDate}`];
             if (!fc) continue;
 
-            const forecastTemp = marketType === 'high' ? (fc.forecastHigh ?? 0) : (fc.forecastLow ?? 0);
-            if (forecastTemp === 0) continue;
+            const forecastTemp = marketType === 'high' ? fc.forecastHigh : fc.forecastLow;
+            if (forecastTemp == null) continue; // no NWS figure for this day (0°F is a real forecast)
 
             // Filter to B-contracts only (between contracts for Dutch betting)
             const marketInputs = markets.filter(m => /-B\d/.test(m.kalshiMarketId) || (m.tempRangeHigh - m.tempRangeLow) <= 3).map(m => ({
@@ -494,7 +494,10 @@ export async function POST() {
               }
             }
 
-            const status = allFilled && binOrders.every((b: any) => b.orderId) ? 'filled' : anyFilled ? 'partial' : 'failed';
+            // Resting GTC orders are live on the book and can still fill: record them as 'pending'
+            // (not 'failed') so the duplicate check and the daily cap see them on the next refresh.
+            const anyResting = binOrders.some((b: any) => b.fillStatus === 'resting' && b.orderId);
+            const status = allFilled && binOrders.every((b: any) => b.orderId) ? 'filled' : anyFilled ? 'partial' : anyResting ? 'pending' : 'failed';
             await prisma.autoBetOrder.create({
               data: {
                 userId, city, state: markets[0]?.state ?? '', marketType, eventTicker,

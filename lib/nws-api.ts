@@ -86,37 +86,38 @@ export async function fetchNwsForecast(cityKey: string): Promise<NwsForecastResu
       }];
     }
 
-    // Group periods by date to extract highs and lows for each day
-    // NWS returns alternating daytime/nighttime periods
-    const dayMap: Record<string, { high: number | null; low: number | null; startTime: string }> = {};
+    // Map NWS periods onto Kalshi market days (local calendar day, as the NWS CLI report settles).
+    //  - Daytime period  → that day's HIGH (keyed by the period's local START date).
+    //  - Night period    → the LOW of the day the night ENDS on. "Tonight" (18:00 Nov 10 → 06:00
+    //    Nov 11) bottoms out on the morning of Nov 11, so it is Nov 11's low. Keying it by its start
+    //    date (the old behaviour) priced every low market against the following night.
+    // Local dates come straight from the ISO strings (NWS includes the city's UTC offset).
+    const dayMap: Record<string, { high: number | null; low: number | null }> = {};
+    const slot = (d: string) => (dayMap[d] ??= { high: null, low: null });
     for (const period of periods) {
-      const startTime = period?.startTime ?? '';
-      // Extract date (YYYY-MM-DD) from ISO string
-      const dateStr = startTime.slice(0, 10);
-      if (!dateStr) continue;
-
-      if (!dayMap[dateStr]) {
-        dayMap[dateStr] = { high: null, low: null, startTime };
-      }
-
+      const temp = typeof period?.temperature === 'number' ? period.temperature : null;
+      if (temp == null) continue;
       if (period?.isDaytime === true) {
-        dayMap[dateStr].high = period?.temperature ?? null;
+        const d = String(period?.startTime ?? '').slice(0, 10);
+        if (d) slot(d).high = temp;
       } else {
-        dayMap[dateStr].low = period?.temperature ?? null;
+        const d = String(period?.endTime ?? '').slice(0, 10);
+        if (d) slot(d).low = temp;
       }
     }
 
-    // Convert to array, sorted by date, limit to first 3 days
+    // Sorted by date, next 4 market days. forecastDate is stored at 12:00 UTC of the local day so
+    // every `toISOString().slice(0, 10)` lookup gets the right calendar date in any timezone.
     const results: NwsForecastResult[] = Object.entries(dayMap)
       .sort(([a], [b]) => a.localeCompare(b))
-      .slice(0, 3)
+      .slice(0, 4)
       .filter(([, v]) => v.high !== null || v.low !== null)
       .map(([dateStr, v]) => ({
         city: coords.city,
         state: coords.state,
         forecastHigh: v.high,
         forecastLow: v.low,
-        forecastDate: v.startTime,
+        forecastDate: `${dateStr}T12:00:00.000Z`,
         retrievedAt: new Date().toISOString(),
         confidence: 'normal',
         error: null,

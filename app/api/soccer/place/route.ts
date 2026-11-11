@@ -56,11 +56,11 @@ export async function POST(req: Request) {
     today.setHours(0, 0, 0, 0);
     const [tempDailyOrders, soccerDailyOrders] = await Promise.all([
       prisma.autoBetOrder.findMany({
-        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } },
         select: { totalCost: true },
       }),
       prisma.soccerBetOrder.findMany({
-        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } },
         select: { totalCost: true },
       }),
     ]);

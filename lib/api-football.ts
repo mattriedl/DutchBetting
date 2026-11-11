@@ -139,6 +139,21 @@ function acquireSlot(): Promise<void> {
   return throttleChain;
 }
 
+// ─── circuit breaker ───
+// When the account is suspended (plan/billing) or the limiter stays tripped, EVERY call fails the
+// same way. Retrying each one (2s + 4s) across hundreds of team lookups is what pushed the ingest
+// past its 300 s limit. After a call has exhausted its retries we stop calling for a while and fail
+// fast; the rest of the job (FootyStats etc.) still completes.
+const BREAKER_PAUSE_MS = 10 * 60 * 1000;
+let pausedUntil = 0;
+let pauseReason = '';
+
+/** For job summaries / UI: is API-Football currently being skipped, and why. */
+export function getApiFootballStatus(): { paused: boolean; reason: string; resumesAt: string | null } {
+  const paused = Date.now() < pausedUntil;
+  return { paused, reason: paused ? pauseReason : '', resumesAt: paused ? new Date(pausedUntil).toISOString() : null };
+}
+
 function isRateLimited(status: number, errors: any): boolean {
   if (status === 429) return true;
   const blob = JSON.stringify(errors ?? '').toLowerCase();
@@ -148,6 +163,7 @@ function isRateLimited(status: number, errors: any): boolean {
 async function apiFetch(path: string): Promise<any> {
   const key = getKey();
   if (!key) return null;
+  if (Date.now() < pausedUntil) return null; // breaker open — see above
 
   const existing = inflight.get(path);
   if (existing) return existing;
@@ -180,6 +196,12 @@ async function apiFetch(path: string): Promise<any> {
             console.warn(`[api-football] rate-limited on ${path}, retry ${attempt} in ${backoff}ms`);
             await sleep(backoff);
             continue;
+          }
+          if (isRateLimited(res.status, errors)) {
+            pausedUntil = Date.now() + BREAKER_PAUSE_MS;
+            pauseReason = JSON.stringify(errors ?? `HTTP ${res.status}`).slice(0, 200);
+            console.warn(`[api-football] still failing after ${MAX_ATTEMPTS} attempts — pausing all calls for ${BREAKER_PAUSE_MS / 60000} min: ${pauseReason}`);
+            return null;
           }
           if (!res.ok) console.warn(`[api-football] ${res.status} for ${path}`);
           else console.warn(`[api-football] API error for ${path}:`, errors);

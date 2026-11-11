@@ -185,7 +185,7 @@ export function PolymarketCSContent() {
   const [credsConfigured, setCredsConfigured] = useState(false);
   const [researching, setResearching] = useState<string | null>(null);
   const [researchMap, setResearchMap] = useState<Record<string, ResearchInfo>>({});
-  const [paperMode, setPaperMode] = useState(false);
+  const [paperMode, setPaperMode] = useState(true);
   const [sortBy, setSortBy] = useState<'margin' | 'date-asc' | 'date-desc'>('margin');
   const [settling, setSettling] = useState(false);
 
@@ -731,11 +731,11 @@ export function PolymarketCSContent() {
               <div className="text-xl font-bold font-mono text-emerald-400">{summary?.viableCount ?? 0}</div>
             </CardContent></Card>
             <Card className="bg-card/50 border-border/50"><CardContent className="p-3">
-              <div className="text-xs text-muted-foreground">Best Margin</div>
+              <div className="text-xs text-muted-foreground">Best Return if Hit</div>
               <div className="text-xl font-bold font-mono text-indigo-400">{(summary?.bestMargin ?? 0).toFixed(1)}%</div>
             </CardContent></Card>
             <Card className="bg-card/50 border-border/50"><CardContent className="p-3">
-              <div className="text-xs text-muted-foreground">Avg Margin</div>
+              <div className="text-xs text-muted-foreground">Avg Return if Hit</div>
               <div className="text-xl font-bold font-mono">{(summary?.avgMargin ?? 0).toFixed(1)}%</div>
             </CardContent></Card>
             <Card className="bg-card/50 border-border/50"><CardContent className="p-3">

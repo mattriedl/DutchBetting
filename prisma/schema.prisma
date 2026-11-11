@@ -126,7 +126,7 @@ model NwsForecast {
   state        String
   latitude     Float
   longitude    Float
-  forecastHigh Float
+  forecastHigh Float? // null when NWS has no daytime period left for that day
   forecastLow  Float?
   forecastDate DateTime
   retrievedAt  DateTime @default(now())
@@ -321,7 +321,7 @@ model PolymarketConfig {
   includeAnyOther Boolean  @default(false)
   signatureType   Int      @default(0) // 0=EOA, 1=email/Magic proxy, 2=Gnosis Safe
   funderAddress   String? // defaults to signing wallet address
-  paperMode       Boolean  @default(false) // paper/demo trading: track picks without placing real orders
+  paperMode       Boolean  @default(true) // paper/demo trading: track picks without placing real orders
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -381,7 +381,7 @@ model CorrectScoreConfig {
   minEdgeCents     Float    @default(2.0) // min positive edge/EV (cents/unit) required to recommend a basket
   minLowScore      Int      @default(0) // min low-scoring consensus score (0-100) to recommend; 0 = gate off
   environment      String   @default("demo") // demo or production
-  paperMode        Boolean  @default(false) // paper/demo trading: track picks without placing real orders
+  paperMode        Boolean  @default(true) // paper/demo trading: track picks without placing real orders
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)

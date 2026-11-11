@@ -168,6 +168,16 @@ function firstOutcomeMidCents(mk: any): number {
     isFinite(p0) && isFinite(p1) &&
     Math.abs(p0 - 0.5) < 1e-6 && Math.abs(p1 - 0.5) < 1e-6;
 
+  // The mid is only meaningful on a real two-sided book. Polymarket also reports a midpoint for
+  // ONE-sided or very wide books (e.g. O/U 8.5 with no bid and a 63c ask shows 0.315/0.685), which
+  // priced "Under 8.5" at 69c when nobody would actually sell it there — phantom 12-16c edges that
+  // the AI tracker kept picking. When Gamma gives book fields, require both sides and a tight spread.
+  if ('bestBid' in (mk ?? {}) || 'bestAsk' in (mk ?? {})) {
+    const bb = dollarsToCents(mk?.bestBid);
+    const ba = dollarsToCents(mk?.bestAsk);
+    if (!(bb > 0 && ba > 0 && ba < 100 && ba - bb <= 10)) return 0;
+  }
+
   if (!isUntradedDefault && isFinite(p0) && p0 > 0 && p0 < 1) {
     return Math.round(p0 * 100);
   }
@@ -246,7 +256,10 @@ function buildGoalsMatchFromEvent(ev: any): GoalsMatch | null {
   if (!btts && ladder.length === 0) return null;
 
   const { teamA, teamB } = parseTeams(ev?.title || sampleQuestion);
-  const matchDate = extractDateFromSlug(slug);
+  // Polymarket's eventDate/startTime follow reschedules; the slug keeps the original date
+  // (e.g. cdr-csp-alb-2026-10-28 was moved to 2026-11-12).
+  const evDate = String(ev?.eventDate ?? ev?.startTime ?? '').slice(0, 10);
+  const matchDate = /^\d{4}-\d{2}-\d{2}$/.test(evDate) ? evDate : extractDateFromSlug(slug);
 
   const gm: GoalsMatch = {
     matchKey: slug, // Polymarket event slug (unique, no "::")

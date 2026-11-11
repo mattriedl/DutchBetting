@@ -171,9 +171,12 @@ function eventToMatch(ev: PolyExactScoreEvent): PolyCorrectScoreMatch | null {
   // and mirrored by endDate (settlement). startDate is when the market OPENED
   // (often days earlier), so it must NOT be used as the match date.
   const slugDateMatch = ev.slug.match(/-(\d{4}-\d{2}-\d{2})-exact-score$/);
-  const matchDate = slugDateMatch
-    ? slugDateMatch[1]
-    : (ev.endDate || ev.startDate || '').slice(0, 10);
+  // Prefer Polymarket's own kick-off date: postponed matches keep their ORIGINAL date in the slug.
+  const matchDate = /^\d{4}-\d{2}-\d{2}$/.test(ev.eventDate || '')
+    ? ev.eventDate
+    : slugDateMatch
+      ? slugDateMatch[1]
+      : (ev.endDate || ev.startDate || '').slice(0, 10);
 
   return {
     slug: ev.slug,
@@ -296,7 +299,10 @@ export function analyzePolyCorrectScore(
     }
   }
 
-  const bestMargin = baskets.reduce((m, b) => Math.max(m, b.dutchMargin), 0);
+  // "Margin" here is the return IF one of the picked scorelines lands (the basket does not cover
+  // every result). Measure it only on baskets of the size we would actually recommend/place;
+  // over all sizes it was always the cheapest 2-pick basket (e.g. 376%) and drove sort/filter.
+  const bestMargin = selectPool.reduce((m, b) => Math.max(m, b.dutchMargin), 0);
   const bestEdge = best?.expectedValue ?? 0;
   let rating: 'excellent' | 'good' | 'marginal' | 'none' = 'none';
   if (recommended) {

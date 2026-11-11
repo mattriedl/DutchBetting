@@ -20,42 +20,40 @@ import { kalshiPublicFetch } from '@/lib/kalshi-api';
 // confirmed active; the rest are probed defensively so new competitions and
 // seasonal tournaments are surfaced automatically.
 export const SCORE_SERIES = [
-  // --- Confirmed live ---
-  { ticker: 'KXWCSCORE', league: 'FIFA World Cup' },
-  { ticker: 'KXMLSSCORE', league: 'MLS' },
-  { ticker: 'KXUELSCORE', league: 'UEFA Europa League' },
-  { ticker: 'KXLIGAMXSCORE', league: 'Liga MX' },
-  // --- European club competitions ---
-  { ticker: 'KXUCLSCORE', league: 'UEFA Champions League' },
-  { ticker: 'KXUECLSCORE', league: 'UEFA Conference League' },
+  // Verified against Kalshi GET /series?category=Sports on 2026-11-10 (every soccer *SCORE series,
+  // full-time only). Kalshi does list series now, so re-check there when adding competitions.
   { ticker: 'KXEPLSCORE', league: 'English Premier League' },
   { ticker: 'KXLALIGASCORE', league: 'La Liga' },
   { ticker: 'KXSERIEASCORE', league: 'Serie A' },
   { ticker: 'KXBUNDESLIGASCORE', league: 'Bundesliga' },
   { ticker: 'KXLIGUE1SCORE', league: 'Ligue 1' },
-  { ticker: 'KXEREDIVISIESCORE', league: 'Eredivisie' },
-  { ticker: 'KXPRIMEIRASCORE', league: 'Primeira Liga' },
-  { ticker: 'KXCHAMPIONSHIPSCORE', league: 'EFL Championship' },
-  // --- Domestic cups ---
-  { ticker: 'KXFACUPSCORE', league: 'FA Cup' },
-  { ticker: 'KXCARABAOSCORE', league: 'Carabao Cup' },
-  { ticker: 'KXCOPADELREYSCORE', league: 'Copa del Rey' },
-  { ticker: 'KXDFBSCORE', league: 'DFB-Pokal' },
-  { ticker: 'KXCOPPASCORE', league: 'Coppa Italia' },
-  // --- Americas ---
+  { ticker: 'KXUCLSCORE', league: 'UEFA Champions League' },
+  { ticker: 'KXUELSCORE', league: 'UEFA Europa League' },
+  { ticker: 'KXUECLSCORE', league: 'UEFA Conference League' },
+  { ticker: 'KXUEFANLSCORE', league: 'UEFA Nations League' },
+  { ticker: 'KXUEFASCSCORE', league: 'UEFA Super Cup' },
+  { ticker: 'KXMLSSCORE', league: 'MLS' },
+  { ticker: 'KXLIGAMXSCORE', league: 'Liga MX' },
+  { ticker: 'KXBRASILEIROSCORE', league: 'Brasileirão' },
   { ticker: 'KXLEAGUESCUPSCORE', league: 'Leagues Cup' },
   { ticker: 'KXUSOPENCUPSCORE', league: 'US Open Cup' },
-  { ticker: 'KXBRASILEIRAOSCORE', league: 'Brasileirão' },
-  { ticker: 'KXLIBERTADORESSCORE', league: 'Copa Libertadores' },
-  { ticker: 'KXCONCACAFSCORE', league: 'CONCACAF Champions Cup' },
-  { ticker: 'KXNWSLSCORE', league: 'NWSL' },
-  // --- National teams / tournaments ---
+  { ticker: 'KXFACUPSCORE', league: 'FA Cup' },
+  { ticker: 'KXEFLCUPSCORE', league: 'EFL Cup' },
+  { ticker: 'KXENGCSSCORE', league: 'FA Community Shield' },
+  { ticker: 'KXCOPADELREYSCORE', league: 'Copa del Rey' },
+  { ticker: 'KXESPSUPERCUPSCORE', league: 'Supercopa de España' },
+  { ticker: 'KXCOPPAITALIASCORE', league: 'Coppa Italia' },
+  { ticker: 'KXITASUPERCUPSCORE', league: 'Supercoppa Italiana' },
+  { ticker: 'KXDFBPOKALSCORE', league: 'DFB-Pokal' },
+  { ticker: 'KXGERSCSCORE', league: 'DFL-Supercup' },
+  { ticker: 'KXCOUPEDEFRANCESCORE', league: 'Coupe de France' },
+  { ticker: 'KXFRASUPERCUPSCORE', league: 'Trophée des Champions' },
+  { ticker: 'KXWCSCORE', league: 'FIFA World Cup' },
   { ticker: 'KXCLUBWCSCORE', league: 'Club World Cup' },
-  { ticker: 'KXWWCSCORE', league: "FIFA Women's World Cup" },
-  { ticker: 'KXEUROSCORE', league: 'UEFA Euro' },
-  { ticker: 'KXCOPASCORE', league: 'Copa América' },
-  { ticker: 'KXNATIONSSCORE', league: 'UEFA Nations League' },
-  { ticker: 'KXFRIENDLYSCORE', league: 'International Friendly' },
+  { ticker: 'KXFINALISSIMASCORE', league: 'Finalissima' },
+  { ticker: 'KXAFCACSCORE', league: 'AFC Asian Cup' },
+  { ticker: 'KXAFCCLSCORE', league: 'AFC Champions League' },
+  { ticker: 'KXAFCONSCORE', league: 'Africa Cup of Nations' },
 ] as const;
 
 export interface Scoreline {
@@ -366,7 +364,10 @@ export function analyzeCorrectScore(
     }
   }
 
-  const bestMargin = baskets.reduce((m, b) => Math.max(m, b.dutchMargin), 0);
+  // "Margin" here is the return IF one of the picked scorelines lands (the basket does not cover
+  // every result). Measure it only on baskets of the size we would actually recommend/place;
+  // over all sizes it was always the cheapest 2-pick basket (e.g. 376%) and drove sort/filter.
+  const bestMargin = pool.reduce((m, b) => Math.max(m, b.dutchMargin), 0);
   const bestEdge = best?.expectedValue ?? 0;
   let rating: 'excellent' | 'good' | 'marginal' | 'none' = 'none';
   if (recommended) {

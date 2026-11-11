@@ -19,7 +19,7 @@ const DEFAULTS = {
   minEdgeCents: 2.0,
   minLowScore: 0,
   environment: 'demo',
-  paperMode: false,
+  paperMode: true, // safe default: paper until the user turns live on
 };
 
 export async function GET() {

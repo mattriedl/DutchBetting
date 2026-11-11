@@ -12,17 +12,32 @@ import { kalshiPublicFetch } from '@/lib/kalshi-api';
 
 // Supported soccer series on Kalshi
 export const SOCCER_SERIES = [
-  { ticker: 'KXWCGAME', league: 'FIFA World Cup', active: true },
+  // Verified against Kalshi GET /series?category=Sports on 2026-11-10.
   { ticker: 'KXEPLGAME', league: 'English Premier League', active: true },
   { ticker: 'KXLALIGAGAME', league: 'La Liga', active: true },
-  { ticker: 'KXBUNDESLIGAGAME', league: 'Bundesliga', active: true },
   { ticker: 'KXSERIEAGAME', league: 'Serie A', active: true },
-  { ticker: 'KXMLSGAME', league: 'MLS', active: true },
+  { ticker: 'KXBUNDESLIGAGAME', league: 'Bundesliga', active: true },
+  { ticker: 'KXLIGUE1GAME', league: 'Ligue 1', active: true },
+  { ticker: 'KXUCLGAME', league: 'UEFA Champions League', active: true },
+  { ticker: 'KXUELGAME', league: 'UEFA Europa League', active: true },
+  { ticker: 'KXUECLGAME', league: 'UEFA Conference League', active: true },
+  { ticker: 'KXUEFANLGAME', league: 'UEFA Nations League', active: true },
   { ticker: 'KXUEFAGAME', league: 'UEFA', active: true },
+  { ticker: 'KXINTLFRIENDLYGAME', league: 'International Friendly', active: true },
   { ticker: 'KXFIFAGAME', league: 'FIFA', active: true },
+  { ticker: 'KXWCGAME', league: 'FIFA World Cup', active: true },
   { ticker: 'KXCLUBWCGAME', league: 'Club World Cup', active: true },
-  { ticker: 'KXCANPLGAME', league: 'Canadian Premier League', active: true },
+  { ticker: 'KXEREDIVISIEGAME', league: 'Eredivisie', active: true },
+  { ticker: 'KXLIGAPORTUGALGAME', league: 'Primeira Liga', active: true },
+  { ticker: 'KXEFLCHAMPIONSHIPGAME', league: 'EFL Championship', active: true },
+  { ticker: 'KXFACUPGAME', league: 'FA Cup', active: true },
+  { ticker: 'KXEFLCUPGAME', league: 'EFL Cup', active: true },
+  { ticker: 'KXMLSGAME', league: 'MLS', active: true },
+  { ticker: 'KXLIGAMXGAME', league: 'Liga MX', active: true },
   { ticker: 'KXBRASILEIROGAME', league: 'Brasileirão', active: true },
+  { ticker: 'KXCONMEBOLLIBGAME', league: 'Copa Libertadores', active: true },
+  { ticker: 'KXCONCACAFCCUPGAME', league: 'CONCACAF Champions Cup', active: true },
+  { ticker: 'KXCANPLGAME', league: 'Canadian Premier League', active: true },
   { ticker: 'KXAFCCLGAME', league: 'AFC Champions League', active: true },
 ] as const;
 

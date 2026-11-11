@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { BarChart3, Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function LoginForm() {
+export function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -133,6 +133,7 @@ export function LoginForm() {
             {isLogin ? 'Sign In' : 'Create Account'}
           </Button>
         </form>
+        {allowSignup && (
         <div className="mt-6 text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
@@ -141,6 +142,7 @@ export function LoginForm() {
             {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </button>
         </div>
+        )}
       </CardContent>
     </Card>
   );

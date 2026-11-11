@@ -58,7 +58,11 @@ export function MarketsContent() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const getForecast = (city: string) => (forecasts ?? []).find((f: any) => f?.city === city);
+  // Earliest day that still has a forecast high (tonight-only rows have a null high).
+  const getForecast = (city: string) =>
+    [...(forecasts ?? [])]
+      .filter((f: any) => f?.city === city && f?.forecastHigh != null)
+      .sort((a: any, b: any) => String(a?.forecastDate).localeCompare(String(b?.forecastDate)))[0];
 
   if (loading) {
     return (
@@ -155,7 +159,7 @@ export function MarketsContent() {
                   {selectedForecast && (
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">NWS Forecast</p>
-                      <p className="text-3xl font-bold font-mono text-orange-400">{selectedForecast?.forecastHigh ?? 0}°F</p>
+                      <p className="text-3xl font-bold font-mono text-orange-400">{selectedForecast?.forecastHigh ?? '—'}°F</p>
                       <Badge variant="outline" className="text-[9px] font-mono mt-1">
                         {selectedForecast?.confidence ?? 'normal'}
                       </Badge>

@@ -21,7 +21,7 @@ const DEFAULTS = {
   includeAnyOther: false,
   signatureType: 0,
   funderAddress: null as string | null,
-  paperMode: false,
+  paperMode: true, // safe default: paper until the user turns live on
 };
 
 export async function GET() {

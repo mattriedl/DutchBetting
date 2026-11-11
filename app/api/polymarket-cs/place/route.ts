@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     const config = await prisma.polymarketConfig.findUnique({ where: { userId } });
-    const paperMode = config?.paperMode ?? false; // paper/demo: track picks, place NO real orders
+    const paperMode = config?.paperMode ?? true; // paper/demo: track picks, place NO real orders
 
     if (!paperMode && !process.env.POLYMARKET_PRIVATE_KEY) {
       return NextResponse.json({ error: 'Polymarket wallet not configured' }, { status: 400 });
@@ -70,6 +70,10 @@ export async function POST(req: Request) {
       };
     });
 
+    const badLeg = legs.find((l: any) => !l.tokenId || !(l.askCents > 0 && l.askCents < 100));
+    if (badLeg) {
+      return NextResponse.json({ error: `No valid price for ${badLeg.label || 'a scoreline'}. Refresh the market and try again.` }, { status: 400 });
+    }
     const costPerUnit = legs.reduce((sum: number, l: any) => sum + l.buyPriceCents, 0);
     if (costPerUnit >= 100 || costPerUnit <= 0) {
       return NextResponse.json({ error: 'Basket no longer profitable after slippage' }, { status: 400 });
@@ -90,7 +94,7 @@ export async function POST(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dailyOrders = await prisma.polymarketBetOrder.findMany({
-      where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+      where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] }, isPaper: false },
       select: { totalCost: true },
     });
     const dailySpentDollars = dailyOrders.reduce((s, o) => s + (o.totalCost ?? 0), 0) / 100;

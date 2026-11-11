@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     const maxDaily = config?.maxDailySpend ?? 50;
     const defaultStake = config?.minStakePerBet ?? 2;
     const maxStake = config?.maxStakePerBet ?? 5;
-    const paperMode = config?.paperMode ?? false; // paper/demo: track picks, place NO real orders
+    const paperMode = config?.paperMode ?? true; // paper/demo: track picks, place NO real orders
 
     let stakeArg = totalStake ?? defaultStake;
     if (stakeArg > maxStake) stakeArg = maxStake; // cap to configured max
@@ -60,15 +60,15 @@ export async function POST(req: Request) {
     today.setHours(0, 0, 0, 0);
     const [tempDaily, soccerDaily, csDaily] = await Promise.all([
       prisma.autoBetOrder.findMany({
-        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } },
         select: { totalCost: true },
       }),
       prisma.soccerBetOrder.findMany({
-        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] } },
         select: { totalCost: true },
       }),
       prisma.correctScoreBetOrder.findMany({
-        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial'] } },
+        where: { userId, createdAt: { gte: today }, status: { in: ['filled', 'partial', 'pending'] }, isPaper: false },
         select: { totalCost: true },
       }),
     ]);
@@ -122,6 +122,12 @@ export async function POST(req: Request) {
       // when the basket was placed without running research.
       modelProb: typeof s.modelProb === 'number' ? s.modelProb : null,
     }));
+    // A leg with no ask (0¢) or a settled price (100¢) is not a real quote; buying it at the
+    // slippage price would record a fake 1¢ fill. Refuse rather than mis-price the basket.
+    const badLeg = legs.find((l: any) => !(l.price > 0 && l.price < 100));
+    if (badLeg) {
+      return NextResponse.json({ error: `No valid price for ${badLeg.label || badLeg.ticker}. Refresh the market and try again.` }, { status: 400 });
+    }
     const costPerUnit = legs.reduce((sum: number, l: any) => sum + l.bidPrice, 0);
     if (costPerUnit >= 100 || costPerUnit <= 0) {
       return NextResponse.json({ error: 'Basket no longer profitable after slippage' }, { status: 400 });
