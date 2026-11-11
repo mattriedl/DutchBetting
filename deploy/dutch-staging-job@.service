@@ -1,0 +1,8 @@
+[Unit]
+Description=DutchBetting TEST SITE scheduled job: %i
+After=dutch-staging.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=25min
+ExecStart=/bin/bash -c '/usr/local/bin/dutch-staging-job %i >> /var/log/dutch-staging-jobs.log 2>&1'

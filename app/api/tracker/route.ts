@@ -1,10 +1,12 @@
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+import { recordRun } from '@/lib/autorun-status';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
+import { authorizeCaller } from '@/lib/automation-auth';
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { fetchCF6Data, CITY_STATION_MAP } from '@/lib/nws-climate';
 
@@ -90,11 +92,12 @@ export async function GET() {
 /**
  * POST /api/tracker — Check settlements for unsettled tracked bets
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const userId = (session.user as any)?.id;
+    // Browser session OR the scheduler's x-automation-secret.
+    const caller = await authorizeCaller(req);
+    if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = caller.userId;
 
     const unsettled = await prisma.dutchBetTrack.findMany({
       where: { userId, settled: false },
@@ -242,6 +245,7 @@ export async function POST() {
       }
     }
 
+    recordRun('dashboard-settle', caller.automated, `checked ${checked}, settled ${resolved}, ${unsettled.length - resolved} still open`);
     return NextResponse.json({
       success: true,
       checked,

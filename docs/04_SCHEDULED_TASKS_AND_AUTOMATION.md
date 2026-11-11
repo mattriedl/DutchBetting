@@ -30,11 +30,19 @@ To rotate the secret: change `AUTOMATION_SECRET` in `.env`, redeploy, and update
 
 Abacus requires ≥ 1 h between runs of a task, which is why D/E are offset.
 
-**Test site (dutchtest.wagerassistant.com):** job B runs **every hour** (systemd `dutch-staging-shadow.timer`,
-`{"limit":10}`) and job C every 3 hours (`dutch-staging-grade.timer`), calling 127.0.0.1 directly. The engine
-only takes pre-match picks (skips matches past kick-off: Polymarket exact kick-off, Kalshi
-occurrence_datetime − 4 h) and rests a match for 6 h after finding no edge, so hourly runs work through the
-whole slate instead of re-researching the same soonest games.
+**Test site (dutchtest.wagerassistant.com)** runs every page on its own (systemd timers, calling 127.0.0.1 directly):
+
+| Timer | When | Does |
+|---|---|---|
+| `dutch-staging-job@shadow` | hourly :05 | AI Tracker analysis, 10 matches/run |
+| `dutch-staging-job@value-run` | hourly :15 | Value Tracker: find and log $10 paper picks |
+| `dutch-staging-job@dashboard` | hourly :25 | `POST /api/refresh`: Kalshi + NWS pull, analysis, demo Dutch picks (Backtest → tracker), History grading |
+| `dutch-staging-job@ingest` | hourly :35 | Predictions pull |
+| `dutch-staging-job@grade` | every 3 h :50 | settle Dashboard demo picks, Value Tracker, Predictions, AI Tracker; recompute calibration |
+
+`/api/refresh` and `POST /api/tracker` accept the automation secret. A scheduled refresh skips the real-money
+full-auto step unless `ALLOW_SCHEDULED_LIVE_BETS=true`. The AI Tracker only takes pre-match picks and rests a
+match for 6 h after finding no edge, so hourly runs work through the whole slate.
 
 ## curl template
 

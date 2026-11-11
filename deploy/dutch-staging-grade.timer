@@ -1,9 +1,0 @@
-[Unit]
-Description=DutchBetting TEST SITE: grade finished picks every 3 hours
-
-[Timer]
-OnCalendar=*-*-* 00/3:35:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target

@@ -1,8 +1,0 @@
-[Unit]
-Description=DutchBetting TEST SITE: AI Tracker autonomous analysis run
-After=dutch-staging.service
-
-[Service]
-Type=oneshot
-TimeoutStartSec=20min
-ExecStart=/bin/bash -c '/usr/local/bin/dutch-staging-job shadow >> /var/log/dutch-staging-jobs.log 2>&1'

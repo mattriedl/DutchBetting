@@ -55,10 +55,12 @@ work on it now. Full docs: `docs/README.md` (read the relevant numbered doc befo
 - **Workflow:** make changes on `staging` → check them on the test site → merge to `main`.
 - **Live site** still runs on Abacus (`kalshi-dutch-betting-f4pmq6.abacusai.app`) and does not deploy
   from GitHub.
-- Scheduled jobs still run as Abacus tasks on the live site. On the test site only the **AI Tracker**
-  is scheduled: `dutch-staging-shadow.timer` (every hour at :05, 10 matches per run) and
-  `dutch-staging-grade.timer` (every 3 h at :35); units in `deploy/`, log `/var/log/dutch-staging-jobs.log`,
-  page label from `SHADOW_AUTORUN_LABEL` in `.env`. Other jobs: run by hand with
-  `dutch-staging-job ingest|shadow|grade|value-run|value-settle`.
+- Scheduled jobs still run as Abacus tasks on the live site. On the **test site** everything runs on
+  its own via systemd: template `dutch-staging-job@.service` + timers in `deploy/` —
+  `@shadow` :05, `@value-run` :15, `@dashboard` :25 (refresh = pull + analyze + demo picks), `@ingest` :35
+  hourly, and `@grade` every 3 h at :50 (tracker, value, predictions, shadow settle + recalibrate).
+  Log `/var/log/dutch-staging-jobs.log`. Pages show it via `<AutoRunStatus>` / `/api/autorun` when
+  `AUTORUN_ENABLED=true` (AI Tracker: `SHADOW_AUTORUN_LABEL`). Scheduled `/api/refresh` never runs
+  real-money full-auto unless `ALLOW_SCHEDULED_LIVE_BETS=true`. Manual: `dutch-staging-job <name>`.
   `.github/workflows/scheduled-jobs.yml` stays inert until `DUTCH_AUTOMATION_ENABLED=true`.
 - Server scripts are versioned in `deploy/`; copy to `/usr/local/bin` after changing them.

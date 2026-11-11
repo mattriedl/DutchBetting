@@ -1,5 +1,6 @@
 'use client';
 
+import { AutoRunStatus } from '@/components/auto-run-status';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -228,6 +229,7 @@ export function ValueTrackerContent() {
                 (low-value markets like double chance are excluded). Every pick is graded against the real result. Paper only —
                 nothing here places a real order.
               </p>
+              <AutoRunStatus runJob="value-run" settleJob="value-settle" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -1,0 +1,9 @@
+[Unit]
+Description=DutchBetting TEST SITE: Predictions pull every hour
+
+[Timer]
+OnCalendar=*-*-* *:35:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

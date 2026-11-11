@@ -1,5 +1,6 @@
 'use client';
 
+import { AutoRunStatus } from '@/components/auto-run-status';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -189,6 +190,7 @@ export function DashboardContent() {
           <div>
             <h1 className="text-2xl font-display font-bold tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-1">Real-time Dutch betting analysis for Kalshi climate markets</p>
+            <AutoRunStatus runJob="dashboard-refresh" settleJob="dashboard-settle" />
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={handleRefreshLive} variant="default" size="sm" className="gap-2" disabled={refreshing}>

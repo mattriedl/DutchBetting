@@ -1,21 +1,23 @@
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60s for sequential Kalshi API calls
 
+import { recordRun } from '@/lib/autorun-status';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
+import { authorizeCaller } from '@/lib/automation-auth';
 import { fetchClimateMarkets, parseTemperatureMarket } from '@/lib/kalshi-api';
 import { fetchNwsForecast, CITY_COORDINATES } from '@/lib/nws-api';
 import { findDutchPositions, calculateDutchBet, calculateUniformContracts } from '@/lib/dutch-betting';
 import { isMarketStillBettable } from '@/lib/market-timing';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const userId = (session.user as any)?.id;
+    // Browser session OR the scheduler's x-automation-secret (acts as AUTOMATION_USER_EMAIL).
+    const caller = await authorizeCaller(req);
+    if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = caller.userId;
     const credential = await prisma.apiCredential.findFirst({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -366,7 +368,9 @@ export async function POST() {
     // Step 7: Full-auto betting — if enabled, place bets on qualifying opportunities
     let autoBetsPlaced = 0;
     try {
-      if (autoBetConfig?.enabled && autoBetConfig?.mode === 'full-auto') {
+      // Real-money full-auto only runs from an unattended scheduler when explicitly allowed.
+      const automatedLiveOk = !caller.automated || process.env.ALLOW_SCHEDULED_LIVE_BETS === 'true';
+      if (automatedLiveOk && autoBetConfig?.enabled && autoBetConfig?.mode === 'full-auto') {
         const RATING_ORDER: Record<string, number> = { excellent: 0, good: 1, marginal: 2, none: 3 };
         const minMargin = autoBetConfig.minProfitMargin ?? 5;
         const minRating = autoBetConfig.minRating ?? 'good';
@@ -630,6 +634,7 @@ export async function POST() {
       console.error('Auto-bet settle error during refresh:', settleErr?.message);
     }
 
+    recordRun('dashboard-refresh', caller.automated, `${results.marketsSaved} markets, ${results.forecastsFetched} forecasts, ${tracksRecorded} new demo picks, ${resolvedCount} forecasts graded`);
     return NextResponse.json({
       success: true,
       message: `Refreshed ${results.marketsSaved} markets (${results.highMarkets} high, ${results.lowMarkets} low) across ${results.cities.length} cities with ${results.forecastsFetched} NWS forecasts`,

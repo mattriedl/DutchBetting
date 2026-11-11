@@ -1,5 +1,6 @@
 'use client';
 
+import { AutoRunStatus } from '@/components/auto-run-status';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -158,6 +159,7 @@ export function PredictionsContent() {
                 track record, and that track record is fed back into the research prompts of every app so the AI weights outside
                 opinions by how often they have actually been right.
               </p>
+              <AutoRunStatus runJob="predictions-ingest" settleJob="predictions-settle" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

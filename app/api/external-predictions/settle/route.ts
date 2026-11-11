@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // throttled API-Football calls make settle slow
 
+import { recordRun } from '@/lib/autorun-status';
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeCaller } from '@/lib/automation-auth';
 import { settleExternalPredictions } from '@/lib/external-predictions';
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
     if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const summary = await settleExternalPredictions();
+    recordRun('predictions-settle', caller.automated, `checked ${summary.checked}, graded ${summary.settled} (${summary.correct} correct)`);
     return NextResponse.json({ success: true, automated: caller.automated, summary });
   } catch (error: any) {
     console.error('[ExternalPredictions API] settle error:', error?.message);

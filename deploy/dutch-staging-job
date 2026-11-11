@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run one DutchBetting automation job against the TEST SITE directly on 127.0.0.1 (no Cloudflare
-# 100-second limit). Usage: dutch-staging-job ingest|shadow|grade|value-run|value-settle
+# 100-second limit). Usage: dutch-staging-job dashboard|dashboard-settle|ingest|shadow|value-run|value-settle|grade
 set -uo pipefail
 ENVF=/opt/dutch-staging/app/.env
 SECRET=$(sed -nE 's/^AUTOMATION_SECRET=//p' "$ENVF")
@@ -8,10 +8,14 @@ BASE=http://127.0.0.1:3470
 call() { local body="${2:-}"; [ -n "$body" ] || body='{}'
   echo "$(date -Is) $1 -> $(curl -sS --max-time 900 -w ' HTTP%{http_code}' -X POST "$BASE$1" -H "x-automation-secret: $SECRET" -H 'Content-Type: application/json' -d "$body" | tail -c 400)"; }
 case "${1:-}" in
-  ingest)       call /api/external-predictions/ingest ;;
-  shadow)       call /api/shadow/run '{"limit":10}' ;;
-  grade)        call /api/external-predictions/settle; call /api/shadow/settle; call /api/calibration/recompute ;;
-  value-run)    call /api/value-tracker/run ;;
-  value-settle) call /api/value-tracker/settle ;;
-  *) echo "usage: $0 ingest|shadow|grade|value-run|value-settle"; exit 2 ;;
+  dashboard)        call /api/refresh ;;                      # pull Kalshi + NWS, analyze, log demo Dutch picks, grade History
+  dashboard-settle) call /api/tracker ;;                      # settle the Dashboard's demo picks
+  ingest)           call /api/external-predictions/ingest ;;
+  shadow)           call /api/shadow/run '{"limit":10}' ;;
+  value-run)        call /api/value-tracker/run ;;
+  value-settle)     call /api/value-tracker/settle ;;
+  grade)            # every results check, then recalibrate on the new outcomes
+                    call /api/tracker; call /api/value-tracker/settle; call /api/external-predictions/settle
+                    call /api/shadow/settle; call /api/calibration/recompute ;;
+  *) echo "usage: $0 dashboard|dashboard-settle|ingest|shadow|value-run|value-settle|grade"; exit 2 ;;
 esac
