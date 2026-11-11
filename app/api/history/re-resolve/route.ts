@@ -21,7 +21,7 @@ export async function POST() {
 
     // Step 1: settle anything pending whose day is over. Without this the button only touched
     // already-settled rows, so on a fresh database it always reported "0 updated".
-    const { resolvePendingPredictions, RESOLVE_AFTER_MS } = await import('@/lib/resolve-predictions');
+    const { resolvePendingPredictions, settleableAt } = await import('@/lib/resolve-predictions');
     const newlyResolved = await resolvePendingPredictions();
     const stillPending = await prisma.predictionHistory.findMany({
       where: { dutchBetResult: 'pending' },
@@ -33,7 +33,7 @@ export async function POST() {
       pendingRemaining: stillPending.length,
       // When the earliest still-pending day becomes settleable.
       nextReadyAt: stillPending[0]
-        ? new Date(Math.max(stillPending[0].forecastDate.getTime() + RESOLVE_AFTER_MS, Date.now())).toISOString()
+        ? new Date(Math.max(settleableAt(stillPending[0].forecastDate).getTime(), Date.now())).toISOString()
         : null,
     };
 
