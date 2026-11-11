@@ -148,7 +148,7 @@ export async function POST(req: Request) {
       // paper mode: ignore refresh failure and keep the shown price.
     }
 
-    const { contracts, totalCostCents, expectedPayoutCents } = calculateGoalsStake(entryPrice, stakeArg);
+    const { contracts, totalCostCents, feeCents, expectedPayoutCents } = calculateGoalsStake(entryPrice, stakeArg, { kalshiFee: betSource === 'kalshi' });
     if (contracts <= 0) {
       return NextResponse.json({ error: 'Stake too small for this price' }, { status: 400 });
     }
@@ -277,6 +277,7 @@ export async function POST(req: Request) {
         contracts,
         totalStake: stakeArg,
         totalCost: status === 'failed' ? 0 : totalCostCents,
+        feeCents: status === 'failed' ? 0 : feeCents,
         expectedPayout: expectedPayoutCents,
         researchNote: researchNote ?? null,
         environment: env,
@@ -298,6 +299,7 @@ export async function POST(req: Request) {
         contracts,
         entryPrice,
         totalCost: `$${(totalCostCents / 100).toFixed(2)}`,
+        kalshiFee: `$${(feeCents / 100).toFixed(2)}`,
         expectedPayout: `$${(expectedPayoutCents / 100).toFixed(2)}`,
         error: errorMessage ?? undefined,
       },

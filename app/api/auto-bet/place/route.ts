@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 import { prisma } from '@/lib/db';
 import { kalshiFetch } from '@/lib/kalshi-api';
 import { isMarketStillBettable } from '@/lib/market-timing';
@@ -114,6 +115,7 @@ export async function POST(req: Request) {
     // Place orders for each bin
     const binOrders: BinOrder[] = [];
     let totalCostCents = 0;
+    let feeCentsTotal = 0; // Kalshi taker fees, included in totalCostCents
     let allFilled = true;
     let anyFilled = false;
     const errors: string[] = [];
@@ -158,7 +160,8 @@ export async function POST(req: Request) {
 
       // Same contract count for every bin so all payouts match and cover total cost
       const count = uniformCount;
-      const costCents = count * bidPrice;
+      const legFee = kalshiTakerFeeCents(count, bidPrice);
+      const costCents = count * bidPrice + legFee;
 
       try {
         // Use Kalshi Create Order V2 API with buffered price
@@ -205,6 +208,7 @@ export async function POST(req: Request) {
           anyFilled = true;
         }
         totalCostCents += costCents;
+        feeCentsTotal += legFee;
 
         // Small delay between orders to avoid rate limits
         await new Promise(r => setTimeout(r, 200));
@@ -245,6 +249,7 @@ export async function POST(req: Request) {
         rating: rating ?? 'none',
         totalStake: totalStake ?? maxStake,
         totalCost: totalCostCents,
+        feeCents: feeCentsTotal,
         expectedPayout: (totalStake ?? maxStake) + (guaranteedReturn ?? 0),
         environment: env,
         status: overallStatus,

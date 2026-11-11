@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 import { prisma } from '@/lib/db';
 import { kalshiFetch } from '@/lib/kalshi-api';
 
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
 
     const orders: { leg: string; ticker: string; bidPrice: number; count: number; orderId?: string; fillStatus?: string; error?: string }[] = [];
     let totalCostCents = 0;
+    let feeCentsTotal = 0; // Kalshi taker fees, included in totalCostCents
     let allFilled = true;
     let anyFilled = false;
     const errors: string[] = [];
@@ -131,7 +133,9 @@ export async function POST(req: Request) {
       // without spending any money or touching Kalshi's authenticated endpoint.
       for (const legInfo of legs) {
         orders.push({ ...legInfo, count: numContracts, orderId: `PAPER-${legInfo.ticker}`, fillStatus: 'filled' });
-        totalCostCents += numContracts * legInfo.bidPrice;
+        const fee = kalshiTakerFeeCents(numContracts, legInfo.bidPrice);
+        feeCentsTotal += fee;
+        totalCostCents += numContracts * legInfo.bidPrice + fee;
         anyFilled = true;
       }
     } else {
@@ -165,7 +169,9 @@ export async function POST(req: Request) {
         const fillStatus = remainingCount === 0 ? 'filled' : fillCount > 0 ? 'partial' : 'resting';
 
         orders.push({ ...legInfo, count: numContracts, orderId, fillStatus });
-        totalCostCents += numContracts * legInfo.bidPrice;
+        const fee = kalshiTakerFeeCents(numContracts, legInfo.bidPrice);
+        feeCentsTotal += fee;
+        totalCostCents += numContracts * legInfo.bidPrice + fee;
 
         if (fillStatus !== 'filled') allFilled = false;
         if (fillStatus === 'filled' || fillStatus === 'partial') anyFilled = true;
@@ -215,6 +221,7 @@ export async function POST(req: Request) {
         drawBidPrice: drawBidPrice,
         totalStake: stakeArg,
         totalCost: totalCostCents,
+        feeCents: feeCentsTotal,
         expectedPayout: numContracts * 100, // $1 per contract if either leg wins
         environment: orderEnv,
         status: overallStatus,

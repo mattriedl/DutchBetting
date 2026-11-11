@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import { authorizeCaller } from '@/lib/automation-auth';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 import { fetchClimateMarkets, parseTemperatureMarket } from '@/lib/kalshi-api';
 import { fetchNwsForecast, CITY_COORDINATES } from '@/lib/nws-api';
 import { findDutchPositions, calculateDutchBet, calculateUniformContracts } from '@/lib/dutch-betting';
@@ -463,6 +464,7 @@ export async function POST(req: Request) {
             const { kalshiFetch } = await import('@/lib/kalshi-api');
             const binOrders: any[] = [];
             let totalCostCents = 0;
+            let feeCentsTotal = 0; // Kalshi taker fees, included in totalCostCents
             let anyFilled = false;
             let allFilled = true;
 
@@ -489,7 +491,9 @@ export async function POST(req: Request) {
                 const remainingCount = parseInt(order?.remaining_count ?? String(count), 10);
                 const fStatus = remainingCount === 0 ? 'filled' : fillCount > 0 ? 'partial' : 'resting';
                 binOrders.push({ ticker: pos.ticker, range: pos.range, price: bidPrice, count, stake: pos.stake, orderId: order?.order_id ?? '', fillStatus: fStatus });
-                totalCostCents += count * bidPrice;
+                const legFee = kalshiTakerFeeCents(count, bidPrice);
+                feeCentsTotal += legFee;
+                totalCostCents += count * bidPrice + legFee;
                 if (fStatus !== 'filled') allFilled = false; else anyFilled = true;
                 await new Promise(r => setTimeout(r, 200));
               } catch (err: any) {
@@ -506,7 +510,7 @@ export async function POST(req: Request) {
               data: {
                 userId, city, state: markets[0]?.state ?? '', marketType, eventTicker,
                 forecastDate: eventDate, nwsForecast: forecastTemp, profitMargin: analysis.profitMargin,
-                rating: analysis.rating, totalStake: maxStake, totalCost: totalCostCents,
+                rating: analysis.rating, totalStake: maxStake, totalCost: totalCostCents, feeCents: feeCentsTotal,
                 expectedPayout: maxStake + analysis.guaranteedReturn, environment: env,
                 status, bins: JSON.stringify(binOrders), settledResult: 'pending',
               },

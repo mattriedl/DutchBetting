@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 import { prisma } from '@/lib/db';
 import { kalshiFetch } from '@/lib/kalshi-api';
 
@@ -141,6 +142,7 @@ export async function POST(req: Request) {
 
     const placed: any[] = [];
     let totalCostCents = 0;
+    let feeCentsTotal = 0; // Kalshi taker fees, included in totalCostCents
     let allFilled = true;
     let anyFilled = false;
     const errors: string[] = [];
@@ -156,7 +158,9 @@ export async function POST(req: Request) {
           modelProb: leg.modelProb,
           contracts, orderId: `PAPER-${leg.ticker}`, fillStatus: 'filled',
         });
-        totalCostCents += contracts * leg.bidPrice;
+        const fee = kalshiTakerFeeCents(contracts, leg.bidPrice);
+        feeCentsTotal += fee;
+        totalCostCents += contracts * leg.bidPrice + fee;
       }
       overallStatus = 'filled';
     } else {
@@ -188,7 +192,9 @@ export async function POST(req: Request) {
         const fillStatus = remainingCount === 0 ? 'filled' : fillCount > 0 ? 'partial' : 'resting';
 
         placed.push({ ticker: leg.ticker, label: leg.label, price: leg.price, bidPrice: leg.bidPrice, modelProb: leg.modelProb, contracts, orderId, fillStatus });
-        totalCostCents += contracts * leg.bidPrice;
+        const fee = kalshiTakerFeeCents(contracts, leg.bidPrice);
+        feeCentsTotal += fee;
+        totalCostCents += contracts * leg.bidPrice + fee;
 
         if (fillStatus !== 'filled') allFilled = false;
         if (fillStatus === 'filled' || fillStatus === 'partial') anyFilled = true;
@@ -220,6 +226,7 @@ export async function POST(req: Request) {
         numPicks: legs.length,
         scorelines: JSON.stringify(placed),
         totalCost: totalCostCents,
+        feeCents: feeCentsTotal,
         combinedCost: combinedCost ?? costPerUnit,
         dutchMargin: dutchMargin ?? 0,
         contracts,

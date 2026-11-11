@@ -22,6 +22,7 @@
 
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { calibrateProb, hasProbCalibration, type CalibrationParams } from '@/lib/calibration';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 
 // League code (the token between KX and BTTS/TOTAL) + display name. Series that
 // aren't currently live simply return zero events and are skipped, so probing a
@@ -582,16 +583,21 @@ export function analyzeGoals(
 /** Uniform contract allocation for a single-leg goals bet. */
 export function calculateGoalsStake(
   costCents: number,
-  totalStakeDollars: number
-): { contracts: number; totalCostCents: number; expectedPayoutCents: number; profitIfWinCents: number } {
+  totalStakeDollars: number,
+  opts: { kalshiFee?: boolean } = {},
+): { contracts: number; totalCostCents: number; feeCents: number; expectedPayoutCents: number; profitIfWinCents: number } {
   const totalStakeCents = Math.round(totalStakeDollars * 100);
   if (costCents <= 0 || costCents >= 100) {
-    return { contracts: 0, totalCostCents: 0, expectedPayoutCents: 0, profitIfWinCents: 0 };
+    return { contracts: 0, totalCostCents: 0, feeCents: 0, expectedPayoutCents: 0, profitIfWinCents: 0 };
   }
-  const contracts = Math.max(1, Math.floor(totalStakeCents / costCents));
-  const totalCostCents = contracts * costCents;
+  const feeFor = (n: number) => (opts.kalshiFee ? kalshiTakerFeeCents(n, costCents) : 0);
+  // Largest contract count whose cost INCLUDING the Kalshi fee stays within the stake (min 1).
+  let contracts = Math.max(1, Math.floor(totalStakeCents / costCents));
+  while (contracts > 1 && contracts * costCents + feeFor(contracts) > totalStakeCents) contracts--;
+  const feeCents = feeFor(contracts);
+  const totalCostCents = contracts * costCents + feeCents; // what you actually pay
   const expectedPayoutCents = contracts * 100;
-  return { contracts, totalCostCents, expectedPayoutCents, profitIfWinCents: expectedPayoutCents - totalCostCents };
+  return { contracts, totalCostCents, feeCents, expectedPayoutCents, profitIfWinCents: expectedPayoutCents - totalCostCents };
 }
 
 /**

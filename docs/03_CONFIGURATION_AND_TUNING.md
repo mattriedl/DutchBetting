@@ -72,6 +72,12 @@ cache 5 min.
 LLM model `gpt-5.4-mini` (string in each file's fetch body), Dixon-Coles `DC_RHO = -0.1`,
 `GRID_MAX = 10` goals (goals research).
 
+### Kalshi fees (`lib/kalshi-fees.ts`)
+Kalshi taker fee `roundUp(0.07 × contracts × P × (1 − P))` per leg (fee schedule effective 2026-07-07) is added to
+the recorded cost of every Kalshi bet (Goals, Correct Score, Soccer, weather Auto-Bet, AI Tracker Kalshi picks) and
+stored in `feeCents`, so net profit is after fees. Goals stake sizing keeps cost + fee within the stake. Polymarket:
+no fee. Not yet included: the Dutch/edge *analysis* (margins, EV filters) still uses prices without fees.
+
 ### API clients
 - `api-football.ts`: `MIN_REQUEST_GAP_MS = 350` (~3 req/s; lowering it risks the provider's temporary
   "account suspended" rate-limit response), `CACHE_TTL_MS = 4 h`, negative cache 6 h,

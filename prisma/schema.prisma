@@ -400,6 +400,7 @@ model CorrectScoreBetOrder {
   numPicks       Int // number of scorelines covered in the basket
   scorelines     String   @db.Text // JSON [{ticker, label, price, bidPrice, contracts, orderId, fillStatus}]
   totalCost      Float    @default(0) // actual cost in cents
+  feeCents       Int? // Kalshi taker fee included in the cost (cents); null/0 for Polymarket or older rows
   combinedCost   Int // sum of leg ask prices (cents per unit basket)
   dutchMargin    Float // (100 - combinedCost) / combinedCost * 100
   contracts      Int      @default(0) // uniform contract count per leg
@@ -439,6 +440,7 @@ model AutoBetOrder {
   rating         String
   totalStake     Float // total $ spent on 3 orders
   totalCost      Float    @default(0) // actual cost in cents from Kalshi
+  feeCents       Int? // Kalshi taker fee included in the cost (cents); null/0 for Polymarket or older rows
   expectedPayout Float // guaranteed return if any bin wins
   environment    String   @default("demo")
   status         String   @default("pending") // pending, filled, partial, failed, cancelled
@@ -487,6 +489,7 @@ model SoccerBetOrder {
   drawBidPrice    Int? // actual bid price with slippage
   totalStake      Float // total $ spent
   totalCost       Float    @default(0) // actual cost in cents from Kalshi fills
+  feeCents       Int? // Kalshi taker fee included in the cost (cents); null/0 for Polymarket or older rows
   expectedPayout  Float // guaranteed return if fav wins or draws ($1 per contract)
   environment     String   @default("demo")
   status          String   @default("pending") // pending, filled, partial, failed
@@ -554,6 +557,7 @@ model GoalsBetOrder {
   contracts      Int      @default(0)
   totalStake     Float // total $ intended
   totalCost      Float    @default(0) // actual cost in cents
+  feeCents       Int? // Kalshi taker fee included in the cost (cents); null/0 for Polymarket or older rows
   expectedPayout Float // contracts * 100 if the bet wins
   researchNote   String?  @db.Text
   environment    String   @default("demo")
@@ -645,6 +649,7 @@ model ShadowPick {
 
   contracts        Int
   stakeCents       Int
+  feeCents       Int? // Kalshi taker fee included in the cost (cents); null/0 for Polymarket or older rows
   payoutIfWinCents Int
 
   researchNote String? @db.Text

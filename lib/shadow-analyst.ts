@@ -149,7 +149,7 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number; 
         continue;
       }
 
-      const stake = calculateGoalsStake(pick.cost, SHADOW_STAKE_DOLLARS);
+      const stake = calculateGoalsStake(pick.cost, SHADOW_STAKE_DOLLARS, { kalshiFee: app === 'goals' });
       if (stake.contracts <= 0) {
         summary.skippedNoEdge++;
         continue;
@@ -183,7 +183,8 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number; 
         lowScore: research.lowScoring?.dataAvailable ? research.lowScoring.score : null,
         rating: analysis.rating,
         contracts: stake.contracts,
-        stakeCents: stake.totalCostCents,
+        stakeCents: stake.totalCostCents, // includes the Kalshi fee for Kalshi picks
+        feeCents: stake.feeCents,
         payoutIfWinCents: stake.expectedPayoutCents,
         researchNote: [
           research.analysis,

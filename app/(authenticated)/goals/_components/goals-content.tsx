@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { FadeIn, Stagger, StaggerItem } from '@/components/animations';
 import { CalibrationPanel } from '@/components/calibration-panel';
+import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
 import {
   Percent,
   Loader2,
@@ -135,6 +136,7 @@ interface GoalsOrder {
   contracts: number;
   totalStake: number;
   totalCost: number;
+  feeCents?: number | null;
   expectedPayout: number;
   researchNote: string | null;
   environment: string;
@@ -846,8 +848,20 @@ function GoalsMatchCard({
 
   const selected = picks.find(p => p.marketTicker + p.side === selectedTicker) ?? defaultPick;
 
-  const contracts = selected && selected.cost > 0 ? Math.max(1, Math.floor((stake * 100) / selected.cost)) : 0;
-  const totalCost = selected ? (contracts * selected.cost) / 100 : 0;
+  // Same sizing as the server (calculateGoalsStake): Kalshi cost includes its taker fee.
+  const sizing = selected && selected.cost > 0 && selected.cost < 100
+    ? (() => {
+        const cost = selected.cost;
+        const stakeCents = Math.round(stake * 100);
+        const feeFor = (n: number) => (match.source !== 'polymarket' ? kalshiTakerFeeCents(n, cost) : 0);
+        let n = Math.max(1, Math.floor(stakeCents / cost));
+        while (n > 1 && n * cost + feeFor(n) > stakeCents) n--;
+        return { contracts: n, feeCents: feeFor(n), totalCostCents: n * cost + feeFor(n) };
+      })()
+    : null;
+  const contracts = sizing?.contracts ?? 0;
+  const totalCost = (sizing?.totalCostCents ?? 0) / 100;
+  const feeDollars = (sizing?.feeCents ?? 0) / 100;
   const payoutIfHit = contracts;
   const placing = placingKey === match.matchKey + (selected?.marketTicker ?? '') + (selected?.side ?? '');
 
@@ -1157,7 +1171,8 @@ function GoalsMatchCard({
             {selected && (
               <div className="rounded-lg bg-muted/20 p-2 text-[11px] text-muted-foreground">
                 Stake ${stake.toFixed(2)} → <span className="text-foreground font-mono">{contracts}</span> contracts •
-                cost <span className="text-foreground font-mono">${totalCost.toFixed(2)}</span> •
+                cost <span className="text-foreground font-mono">${totalCost.toFixed(2)}</span>
+                {feeDollars > 0 && <> (incl. <span className="font-mono">${feeDollars.toFixed(2)}</span> Kalshi fee)</>} •
                 payout if hit <span className="text-emerald-400 font-mono">${payoutIfHit.toFixed(2)}</span>
               </div>
             )}
@@ -1260,6 +1275,9 @@ function GoalsOrderCard({ order }: { order: GoalsOrder }) {
           <div className="text-right shrink-0">
             <div className="text-xs text-muted-foreground">Cost / Payout</div>
             <div className="text-sm font-mono">${(order.totalCost / 100).toFixed(2)} → ${(order.expectedPayout / 100).toFixed(2)}</div>
+            {(order.feeCents ?? 0) > 0 && (
+              <div className="text-[10px] text-muted-foreground">incl. ${((order.feeCents ?? 0) / 100).toFixed(2)} Kalshi fee</div>
+            )}
             {settled && (
               <div className={`text-sm font-bold font-mono mt-1 ${(order.netProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {(order.netProfit ?? 0) >= 0 ? '+' : ''}${((order.netProfit ?? 0) / 100).toFixed(2)}
