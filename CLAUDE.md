@@ -44,9 +44,18 @@ work on it now. Full docs: `docs/README.md` (read the relevant numbered doc befo
 - Kalshi keys live in the DB (Settings page), not env. Polymarket uses CLOB V2 with
   signatureType 3 (POLY_1271 deposit wallet). See doc 05.
 
-## Hosting status
-- Live site still runs on Abacus (`kalshi-dutch-betting-f4pmq6.abacusai.app`) and does **not**
-  deploy from GitHub. New host/URL not chosen yet.
-- Scheduled jobs still run as Abacus tasks. `.github/workflows/scheduled-jobs.yml` replicates
-  them but stays inert until `DUTCH_AUTOMATION_ENABLED=true` plus its two secrets are set —
-  turn the Abacus tasks off at the same moment so nothing runs twice.
+## Hosting status and workflow
+- **Test site:** https://dutchtest.wagerassistant.com on Matt's Ubuntu server (173.249.54.18), deploys
+  the **`staging`** branch automatically within ~2 min of a push (`/usr/local/bin/dutch-staging-sync`,
+  timer `dutch-staging-sync.timer`; status `/var/log/dutch-staging-sync.status`, build log
+  `/var/log/dutch-staging-build.log`). Broken builds never replace the running site.
+  Runs as user `dutchstage` from `/opt/dutch-staging/app`, service `dutch-staging` on 127.0.0.1:3470,
+  own PostgreSQL DB `dutch_staging` (separate from the Abacus database). No Kalshi/Polymarket trading
+  credentials there, so it cannot place real orders — keep it that way (use Kalshi *demo* keys if needed).
+- **Workflow:** make changes on `staging` → check them on the test site → merge to `main`.
+- **Live site** still runs on Abacus (`kalshi-dutch-betting-f4pmq6.abacusai.app`) and does not deploy
+  from GitHub.
+- Scheduled jobs still run as Abacus tasks. On the test site they are NOT scheduled (to avoid spending
+  API quota twice); run one by hand with `dutch-staging-job ingest|shadow|grade|value-run|value-settle`.
+  `.github/workflows/scheduled-jobs.yml` stays inert until `DUTCH_AUTOMATION_ENABLED=true`.
+- Server scripts are versioned in `deploy/`; copy to `/usr/local/bin` after changing them.

@@ -126,13 +126,30 @@ predictions, value picks and calibration. Large tables: `ExternalPrediction`, `V
 7. Turn off the Abacus scheduled tasks so jobs don't run twice against the same database.
 8. Visit an authenticated page while logged out → must redirect to `/login` (middleware working).
 
-## F. Shipping changes while still on Abacus
+## F. Test site (dutchtest.wagerassistant.com)
+
+Runs on the Ubuntu server next to the other sites, following the `staging` branch.
+
+| Piece | Where |
+|---|---|
+| Code checkout | `/opt/dutch-staging/app` (user `dutchstage`), `.env` there (mode 600) |
+| Service | `systemctl status dutch-staging` → `next start` on 127.0.0.1:3470 |
+| Auto-deploy | `dutch-staging-sync.timer` every 2 min → `/usr/local/bin/dutch-staging-sync` (source: `deploy/`) |
+| Status / logs | `/var/log/dutch-staging-sync.status`, `/var/log/dutch-staging-build.log`, `journalctl -u dutch-staging` |
+| Database | PostgreSQL 16 on the server, DB/role `dutch_staging` (not backed up by `server-backup`, which covers MySQL only) |
+| Web | Apache vhost `dutchtest.wagerassistant.com(-ssl).conf` → proxy; Cloudflare proxied DNS; Let's Encrypt via certbot dns-cloudflare |
+| Jobs | not scheduled; run `dutch-staging-job ingest|shadow|grade|value-run|value-settle` |
+
+Force a rebuild: `dutch-staging-sync --force`. Sign-up is off (`ALLOW_SIGNUP=false`); create a login with
+`SEED_USER_EMAIL=... SEED_USER_PASSWORD=... corepack yarn prisma db seed` as `dutchstage`.
+
+## G. Shipping changes while still on Abacus
 
 The live site deploys from the Abacus project, not from GitHub. Open the app's Abacus conversation, describe
 or upload the change, and ask for it to be tested and deployed. Saving a checkpoint only updates the preview;
 a deploy is needed for the public site.
 
-## G. Adding a new page or route (reminder)
+## H. Adding a new page or route (reminder)
 
 Add the page under `app/(authenticated)/<name>/`, add it to `components/sidebar.tsx` navItems, and **add
 `/<name>/:path*` to the matcher in `middleware.ts`** — otherwise expired sessions won't redirect to login.

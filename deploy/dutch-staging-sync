@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# DutchBetting TEST SITE — deploy new commits of the `staging` branch.
+#   dutch-staging-sync          deploy only if GitHub has a new commit
+#   dutch-staging-sync --force  rebuild even if up to date
+# Builds into .build-next and swaps it in only on success, so a broken commit never takes the
+# test site down. Status: /var/log/dutch-staging-sync.status  Build log: /var/log/dutch-staging-build.log
+set -euo pipefail
+BRANCH="staging"
+HOME_DIR="/opt/dutch-staging"
+APP="$HOME_DIR/app"
+RUN_USER="dutchstage"
+STATUS=/var/log/dutch-staging-sync.status
+BUILDLOG=/var/log/dutch-staging-build.log
+FORCE=0
+for a in "$@"; do case "$a" in --force) FORCE=1;; esac; done
+
+as_app() { runuser -u "$RUN_USER" -- env HOME="$HOME_DIR" COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "$@"; }
+exec 9>/run/dutch-staging-sync.lock; flock -n 9 || exit 0
+cd "$APP"
+
+as_app git fetch -q origin "$BRANCH" 2>/dev/null || { [ "$FORCE" = 1 ] || exit 0; }
+LOCAL="$(as_app git rev-parse HEAD)"
+REMOTE="$(as_app git rev-parse "origin/$BRANCH" 2>/dev/null || echo "$LOCAL")"
+if [ "$LOCAL" = "$REMOTE" ] && [ "$FORCE" = 0 ]; then exit 0; fi
+
+echo "$(date -Is) deploying $BRANCH ${LOCAL:0:7} -> ${REMOTE:0:7}"
+[ "$LOCAL" != "$REMOTE" ] && as_app git reset -q --hard "origin/$BRANCH"
+NEW="$(as_app git rev-parse --short HEAD)"
+
+: > "$BUILDLOG"; chown "$RUN_USER" "$BUILDLOG"
+if ! as_app bash -c "set -e; set -a; . ./.env; set +a; export NEXT_DIST_DIR=.build-next
+      corepack yarn install --immutable >>$BUILDLOG 2>&1
+      corepack yarn prisma generate >>$BUILDLOG 2>&1
+      rm -rf .build-next && corepack yarn next build >>$BUILDLOG 2>&1"; then
+  echo "$(date -Is) FAILED build $NEW (site unchanged) — see $BUILDLOG" | tee "$STATUS"
+  exit 1
+fi
+# Schema: additive db push only. Without --accept-data-loss Prisma refuses destructive changes.
+if ! as_app bash -c "set -a; . ./.env; set +a; corepack yarn prisma db push --skip-generate >>$BUILDLOG 2>&1"; then
+  echo "$(date -Is) FAILED schema push $NEW (site unchanged) — see $BUILDLOG" | tee "$STATUS"
+  exit 1
+fi
+as_app bash -c 'rm -rf .build-old; [ -d .build ] && mv .build .build-old; mv .build-next .build'
+systemctl restart dutch-staging.service
+echo "$(date -Is) OK deployed $NEW" | tee "$STATUS"

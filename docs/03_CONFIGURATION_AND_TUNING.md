@@ -8,6 +8,7 @@ Copy `.env.example` to `.env`. Never commit `.env`.
 |---|---|---|---|
 | `DATABASE_URL` | yes | Prisma | PostgreSQL connection string `postgresql://user:pass@host:5432/db?schema=public`. |
 | `NEXTAUTH_SECRET` | yes | NextAuth | Random 32+ byte string (`openssl rand -base64 32`). Changing it logs everyone out. |
+| `ALLOW_SIGNUP` | no | signup route, login page | `true` shows "Sign up" and enables `/api/signup`. Default off: this is a private dashboard. |
 | `NEXTAUTH_URL` | yes off-Abacus | NextAuth, `app/layout.tsx` | Public base URL, e.g. `https://bets.example.com`. Abacus sets it automatically, so it's absent from `.env` there. |
 | `ABACUSAI_API_KEY` | for AI research | score/goals/polymarket research | LLM calls to `https://apps.abacus.ai/v1/chat/completions` (OpenAI-compatible). Without it, research falls back to a market-implied Poisson model. |
 | `API_FOOTBALL_KEY` | recommended | api-football, low-scoring, predictions | api-sports.io key (Pro plan: 7,500 requests/day). |
@@ -79,8 +80,8 @@ LLM model `gpt-5.4-mini` (string in each file's fetch body), Dixon-Coles `DC_RHO
 - `market-timing.ts`: `LOW_CUTOFF_HOUR = 8`, `HIGH_CUTOFF_HOUR = 17`.
 
 ### Market coverage lists
-- Kalshi correct-score series: `SCORE_SERIES` (`lib/correct-score.ts`). Kalshi has no series-listing
-  endpoint, so add new competitions here by ticker (e.g. `KXEPLSCORE`).
+- Kalshi correct-score series: `SCORE_SERIES` (`lib/correct-score.ts`). Verify tickers with Kalshi
+  `GET /series?category=Sports` (it does list series now) before adding them.
 - Kalshi goals leagues: `GOALS_LEAGUES` (`lib/goals-markets.ts`).
 - Kalshi soccer match series: `SOCCER_SERIES` (`lib/soccer-dutch.ts`).
 - Weather cities/tickers: `CLIMATE_HIGH_TICKERS`, `CLIMATE_LOW_TICKERS` (`lib/kalshi-api.ts`) and
@@ -88,6 +89,6 @@ LLM model `gpt-5.4-mini` (string in each file's fetch body), Dixon-Coles `DC_RHO
 - FootyStats leagues: chosen on the FootyStats account website (maximum 50).
 
 ## Users
-- Create the test user: `yarn prisma db seed` (runs `scripts/safe-seed.ts`, upsert only).
-- New users can sign up on the login page (`/api/signup`). All existing real bet data belongs to
+- Create a login: `SEED_USER_EMAIL=you@example.com SEED_USER_PASSWORD='10+ chars' yarn prisma db seed` (creates only if missing; the old hard-coded john@doe.com admin was removed).
+- Public sign-up is off unless `ALLOW_SIGNUP=true`. All existing real bet data belongs to
   `mattriedl@hotmail.com`.
