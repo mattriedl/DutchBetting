@@ -313,16 +313,19 @@ export async function resolveTeamId(teamName: string): Promise<number | null> {
   // Try an ordered set of progressively broader search terms (deduped, max 4).
   // As soon as one term returns a confident fuzzy match we return it; each term
   // is only queried until a hit, minimising /teams calls per resolution.
+  let allAnswered = true;
   for (const term of buildSearchCandidates(teamName)) {
     const data = await apiFetch(`/teams?search=${encodeURIComponent(term)}`);
+    if (data == null) { allAnswered = false; continue; } // request failed (suspended/limited/paused)
     if (data?.response?.length) {
       const r = pickBestTeam(teamName, data.response);
       if (r != null) return r; // pickBestTeam populates teamIdCache on success
     }
   }
 
-  // Nothing matched across all candidate terms - negative-cache to avoid re-querying.
-  teamIdNegativeCache.set(nkey, Date.now());
+  // Negative-cache only a genuine "no such team". If any search FAILED, caching it would hide the
+  // team for 6 h after the API recovers (this blocked every lookup after the Nov 2026 suspension).
+  if (allAnswered) teamIdNegativeCache.set(nkey, Date.now());
   return null;
 }
 
@@ -407,13 +410,13 @@ async function fetchInjuries(teamId: number): Promise<TeamInjury[]> {
   const nextData = await apiFetch(`/fixtures?team=${teamId}&next=1`);
   const fixtureId = nextData?.response?.[0]?.fixture?.id;
   if (!fixtureId) {
-    setCache(ck, []);
+    if (nextData != null) setCache(ck, []); // cache only a real "no upcoming fixture", not a failed call
     return [];
   }
 
   const data = await apiFetch(`/injuries?fixture=${fixtureId}`);
   if (!data?.response?.length) {
-    setCache(ck, []);
+    if (data != null) setCache(ck, []);
     return [];
   }
 
