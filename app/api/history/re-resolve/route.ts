@@ -9,7 +9,8 @@ import { fetchAllObservedTemps } from '@/lib/nws-climate';
 
 /**
  * POST /api/history/re-resolve
- * Re-resolves all previously resolved predictions using NWS CF6 official data.
+ * 1) Settles pending predictions for days that have finished (same as the automatic resolver).
+ * 2) Re-resolves previously resolved predictions using NWS CF6 official data.
  * Only updates predictions where CF6 data is available for their city+date.
  * Useful for replacing Kalshi bin midpoint estimates with exact NWS observed temps.
  */
@@ -18,7 +19,25 @@ export async function POST() {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Fetch CF6 data for all cities
+    // Step 1: settle anything pending whose day is over. Without this the button only touched
+    // already-settled rows, so on a fresh database it always reported "0 updated".
+    const { resolvePendingPredictions, RESOLVE_AFTER_MS } = await import('@/lib/resolve-predictions');
+    const newlyResolved = await resolvePendingPredictions();
+    const stillPending = await prisma.predictionHistory.findMany({
+      where: { dutchBetResult: 'pending' },
+      select: { forecastDate: true },
+      orderBy: { forecastDate: 'asc' },
+    });
+    const pendingInfo = {
+      newlyResolved,
+      pendingRemaining: stillPending.length,
+      // When the earliest still-pending day becomes settleable.
+      nextReadyAt: stillPending[0]
+        ? new Date(Math.max(stillPending[0].forecastDate.getTime() + RESOLVE_AFTER_MS, Date.now())).toISOString()
+        : null,
+    };
+
+    // Step 2: fetch CF6 data for all cities
     console.log('Re-resolve: Fetching NWS CF6 data for all cities...');
     const observedTemps = await fetchAllObservedTemps();
     const citiesWithData = Object.keys(observedTemps).length;
@@ -26,7 +45,7 @@ export async function POST() {
     console.log(`Re-resolve: Got CF6 data for ${citiesWithData} cities, ${totalDays} day-records`);
 
     if (citiesWithData === 0) {
-      return NextResponse.json({ success: false, error: 'No CF6 data available', updated: 0 });
+      return NextResponse.json({ success: true, updated: 0, skipped: 0, alreadyCf6: 0, totalChecked: 0, cf6Unavailable: true, ...pendingInfo });
     }
 
     // Find all resolved predictions (that could benefit from CF6 update)
@@ -124,6 +143,7 @@ export async function POST() {
       skipped,
       alreadyCf6,
       totalChecked: resolved.length,
+      ...pendingInfo,
     });
   } catch (error: any) {
     console.error('Re-resolve error:', error?.message);

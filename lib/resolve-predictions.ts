@@ -47,6 +47,9 @@ function sleep(ms: number): Promise<void> {
  * 
  * Returns the count of resolved predictions.
  */
+/** A market day (stored as 12:00 UTC) is settleable this long after its forecastDate. */
+export const RESOLVE_AFTER_MS = 30 * 60 * 60 * 1000;
+
 export async function resolvePendingPredictions(): Promise<number> {
   let resolvedCount = 0;
 
@@ -54,7 +57,7 @@ export async function resolvePendingPredictions(): Promise<number> {
     // Only days that are over everywhere we track. forecastDate is stored as midnight UTC of the
     // market day; that day ends in US Pacific ~32 h later. Without this cutoff every History page
     // load re-queried NWS + Kalshi for tomorrow's (unresolvable) forecasts.
-    const resolvableBefore = new Date(Date.now() - 30 * 60 * 60 * 1000);
+    const resolvableBefore = new Date(Date.now() - RESOLVE_AFTER_MS);
     const pendingPredictions = await prisma.predictionHistory.findMany({
       where: { dutchBetResult: 'pending', forecastDate: { lt: resolvableBefore } },
     });

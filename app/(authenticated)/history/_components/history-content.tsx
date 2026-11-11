@@ -110,7 +110,25 @@ export function HistoryContent() {
       const res = await fetch('/api/history/re-resolve', { method: 'POST' });
       const data = await res.json();
       if (data?.success) {
-        toast.success(`Updated ${data.updated} predictions with official NWS data (${data.alreadyCf6} already had NWS data, ${data.skipped} skipped — no CF6 available)`);
+        const settled = data.newlyResolved ?? 0;
+        const upgraded = data.updated ?? 0;
+        const when = data.nextReadyAt
+          ? new Date(data.nextReadyAt).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+          : null;
+        if (settled > 0 || upgraded > 0) {
+          toast.success(
+            `Settled ${settled} finished forecast${settled === 1 ? '' : 's'}` +
+            (upgraded > 0 ? `, upgraded ${upgraded} to official NWS temperatures` : '') +
+            (data.pendingRemaining ? `. ${data.pendingRemaining} still waiting on days that haven't finished.` : '.'),
+          );
+        } else if (data.pendingRemaining > 0) {
+          toast.info(
+            `Nothing to update yet — ${data.pendingRemaining} forecast${data.pendingRemaining === 1 ? ' is' : 's are'} for days that haven't finished` +
+            (when ? `. Next results from about ${when}` : '') + ' (checked automatically).',
+          );
+        } else {
+          toast.success(`All ${data.alreadyCf6 ?? 0} settled forecasts already use official NWS temperatures.`);
+        }
         // Reload history
         const cityParam = selectedCity !== 'all' ? `&city=${encodeURIComponent(selectedCity)}` : '';
         const refreshRes = await fetch(`/api/history?marketType=${marketType}${cityParam}&limit=1000`);
