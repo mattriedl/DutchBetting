@@ -120,6 +120,12 @@ async function gammaFetch(path: string): Promise<any> {
   return res.json();
 }
 
+function polyKickoffIso(v: any): string {
+  // gameStartTime looks like "2026-11-12 17:30:00+00"
+  const t = Date.parse(String(v ?? '').replace(' ', 'T').replace(/\+00$/, 'Z'));
+  return Number.isFinite(t) ? new Date(t).toISOString() : '';
+}
+
 /** Extract YYYY-MM-DD from an event slug like "mls-nyc-tor-2026-07-31-more-markets". */
 function extractDateFromSlug(slug: string): string {
   const m = (slug ?? '').match(/(\d{4}-\d{2}-\d{2})/);
@@ -270,6 +276,8 @@ function buildGoalsMatchFromEvent(ev: any): GoalsMatch | null {
     matchTitle: `${teamA} vs ${teamB}`,
     matchDate,
     expirationTime: ev?.endDate ?? '',
+    // Exact kick-off (follows reschedules); the first market's gameStartTime is the fallback.
+    bettableUntil: polyKickoffIso(ev?.startTime ?? ev?.markets?.[0]?.gameStartTime),
     source: 'polymarket',
     totalLadder: ladder,
   };

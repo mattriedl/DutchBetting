@@ -45,6 +45,23 @@ export interface ShadowRunSummary {
   details: { match: string; outcome: string }[];
 }
 
+/** Don't take a pre-match pick closer to kick-off than this. */
+const KICKOFF_BUFFER_MS = 15 * 60 * 1000;
+/**
+ * Matches researched without a qualifying edge are rested this long before being re-checked.
+ * Without it, an hourly schedule re-researched the same soonest-kick-off matches every run (they
+ * never get a pick, so they never leave the front of the queue) and never reached the rest.
+ * In-memory: a restart just means one extra look.
+ */
+const NO_EDGE_COOLDOWN_MS = 6 * 3600 * 1000;
+const noEdgeUntil = new Map<string, number>();
+
+/** Last completed run in this server process (for the AI Tracker page). Resets on restart/deploy. */
+export let lastShadowRun: {
+  at: string; automated: boolean; matchesScanned: number; researched: number;
+  picksRecorded: number; skippedNoEdge: number; errors: number;
+} | null = null;
+
 function newRunId(): string {
   return `shadow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -53,7 +70,7 @@ function newRunId(): string {
  * Run one autonomous analysis pass.
  * `limit` caps how many matches get the (slow, paid) LLM research treatment.
  */
-export async function runShadowAnalysis(opts: { userId: string; limit?: number } = { userId: '' }): Promise<ShadowRunSummary> {
+export async function runShadowAnalysis(opts: { userId: string; limit?: number; automated?: boolean } = { userId: '' }): Promise<ShadowRunSummary> {
   const limit = opts.limit ?? 8;
   const runId = newRunId();
   const summary: ShadowRunSummary = {
@@ -85,10 +102,17 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number }
   });
   const openKeys = new Set(existing.map(e => `${e.app}::${e.matchKey}`));
 
+  const now = Date.now();
+  for (const [k, until] of noEdgeUntil) if (until <= now) noEdgeUntil.delete(k);
   const candidates = all
     .filter(m => {
       const app = m.source === 'polymarket' ? 'polymarket_goals' : 'goals';
-      return !openKeys.has(`${app}::${m.matchKey}`);
+      if (openKeys.has(`${app}::${m.matchKey}`)) return false;
+      if (noEdgeUntil.has(`${app}::${m.matchKey}`)) return false;
+      // Pre-match picks only: skip matches that have kicked off (or are about to).
+      const until = Date.parse(m.bettableUntil ?? '');
+      if (Number.isFinite(until) && until - KICKOFF_BUFFER_MS <= now) return false;
+      return true;
     })
     // Soonest kickoff first — those are the ones about to become gradeable.
     .sort((a, b) => String(a.matchDate).localeCompare(String(b.matchDate)))
@@ -117,6 +141,7 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number }
       const prob = pick?.modelProb ?? 0;
       if (!pick || edge < SHADOW_MIN_EDGE_CENTS || prob < SHADOW_MIN_PROB) {
         summary.skippedNoEdge++;
+        noEdgeUntil.set(`${app}::${match.matchKey}`, Date.now() + NO_EDGE_COOLDOWN_MS);
         summary.details.push({
           match: match.matchTitle,
           outcome: `no qualifying edge (best ${pick ? `${pick.label} ${edge.toFixed(1)}¢ @ ${(prob * 100).toFixed(0)}%` : 'none'})`,
@@ -193,6 +218,15 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number }
     }
   }
 
+  lastShadowRun = {
+    at: new Date().toISOString(),
+    automated: !!opts.automated,
+    matchesScanned: summary.matchesScanned,
+    researched: summary.researched,
+    picksRecorded: summary.picksRecorded,
+    skippedNoEdge: summary.skippedNoEdge,
+    errors: summary.errors,
+  };
   return summary;
 }
 

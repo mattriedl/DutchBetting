@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
-import { getShadowStats, SHADOW_STAKE_DOLLARS, SHADOW_MIN_EDGE_CENTS, SHADOW_MIN_PROB } from '@/lib/shadow-analyst';
+import { getShadowStats, SHADOW_STAKE_DOLLARS, SHADOW_MIN_EDGE_CENTS, SHADOW_MIN_PROB, lastShadowRun } from '@/lib/shadow-analyst';
 
 /**
  * GET /api/shadow?status=all|open|settled
@@ -35,6 +35,9 @@ export async function GET(req: NextRequest) {
         stakeDollars: SHADOW_STAKE_DOLLARS,
         minEdgeCents: SHADOW_MIN_EDGE_CENTS,
         minProb: SHADOW_MIN_PROB,
+        // Set on hosts where a scheduler calls /api/shadow/run (e.g. "every hour"); null = manual only.
+        autoRun: process.env.SHADOW_AUTORUN_LABEL || null,
+        lastRun: lastShadowRun,
       },
     });
   } catch (error: any) {

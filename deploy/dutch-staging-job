@@ -9,7 +9,7 @@ call() { local body="${2:-}"; [ -n "$body" ] || body='{}'
   echo "$(date -Is) $1 -> $(curl -sS --max-time 900 -w ' HTTP%{http_code}' -X POST "$BASE$1" -H "x-automation-secret: $SECRET" -H 'Content-Type: application/json' -d "$body" | tail -c 400)"; }
 case "${1:-}" in
   ingest)       call /api/external-predictions/ingest ;;
-  shadow)       call /api/shadow/run '{"limit":6}' ;;
+  shadow)       call /api/shadow/run '{"limit":10}' ;;
   grade)        call /api/external-predictions/settle; call /api/shadow/settle; call /api/calibration/recompute ;;
   value-run)    call /api/value-tracker/run ;;
   value-settle) call /api/value-tracker/settle ;;

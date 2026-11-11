@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({} as any));
     const limit = Math.max(1, Math.min(20, Number(body?.limit) || 8));
 
-    const summary = await runShadowAnalysis({ userId: caller.userId, limit });
+    const summary = await runShadowAnalysis({ userId: caller.userId, limit, automated: caller.automated });
     return NextResponse.json({ success: true, automated: caller.automated, summary });
   } catch (error: any) {
     console.error('[Shadow API] run error:', error?.message);

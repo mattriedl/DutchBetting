@@ -55,7 +55,10 @@ work on it now. Full docs: `docs/README.md` (read the relevant numbered doc befo
 - **Workflow:** make changes on `staging` → check them on the test site → merge to `main`.
 - **Live site** still runs on Abacus (`kalshi-dutch-betting-f4pmq6.abacusai.app`) and does not deploy
   from GitHub.
-- Scheduled jobs still run as Abacus tasks. On the test site they are NOT scheduled (to avoid spending
-  API quota twice); run one by hand with `dutch-staging-job ingest|shadow|grade|value-run|value-settle`.
+- Scheduled jobs still run as Abacus tasks on the live site. On the test site only the **AI Tracker**
+  is scheduled: `dutch-staging-shadow.timer` (every hour at :05, 10 matches per run) and
+  `dutch-staging-grade.timer` (every 3 h at :35); units in `deploy/`, log `/var/log/dutch-staging-jobs.log`,
+  page label from `SHADOW_AUTORUN_LABEL` in `.env`. Other jobs: run by hand with
+  `dutch-staging-job ingest|shadow|grade|value-run|value-settle`.
   `.github/workflows/scheduled-jobs.yml` stays inert until `DUTCH_AUTOMATION_ENABLED=true`.
 - Server scripts are versioned in `deploy/`; copy to `/usr/local/bin` after changing them.

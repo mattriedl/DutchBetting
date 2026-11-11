@@ -30,6 +30,12 @@ To rotate the secret: change `AUTOMATION_SECRET` in `.env`, redeploy, and update
 
 Abacus requires ≥ 1 h between runs of a task, which is why D/E are offset.
 
+**Test site (dutchtest.wagerassistant.com):** job B runs **every hour** (systemd `dutch-staging-shadow.timer`,
+`{"limit":10}`) and job C every 3 hours (`dutch-staging-grade.timer`), calling 127.0.0.1 directly. The engine
+only takes pre-match picks (skips matches past kick-off: Polymarket exact kick-off, Kalshi
+occurrence_datetime − 4 h) and rests a match for 6 h after finding no edge, so hourly runs work through the
+whole slate instead of re-researching the same soonest games.
+
 ## curl template
 
 ```bash

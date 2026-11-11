@@ -1,0 +1,9 @@
+[Unit]
+Description=DutchBetting TEST SITE: run the AI Tracker analysis every hour
+
+[Timer]
+OnCalendar=*-*-* *:05:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -26,6 +26,12 @@ import { calibrateProb, hasProbCalibration, type CalibrationParams } from '@/lib
 // League code (the token between KX and BTTS/TOTAL) + display name. Series that
 // aren't currently live simply return zero events and are skipped, so probing a
 // broad list is safe and picks up new competitions automatically.
+/** See GoalsMatch.bettableUntil. */
+function kalshiBettableUntil(mk: any): string {
+  const t = Date.parse(mk?.occurrence_datetime ?? mk?.expected_expiration_time ?? '');
+  return Number.isFinite(t) ? new Date(t - 4 * 3600 * 1000).toISOString() : '';
+}
+
 export const GOALS_LEAGUES = [
   // Each code must exist on Kalshi as both KX<code>BTTS and KX<code>TOTAL.
   // Verified against GET /series?category=Sports on 2026-11-10.
@@ -91,6 +97,12 @@ export interface GoalsMatch {
   matchTitle: string;     // "New York City vs Toronto"
   matchDate: string;      // YYYY-MM-DD
   expirationTime: string;
+  /**
+   * Latest time (ISO) a PRE-MATCH pick still makes sense. Polymarket: exact kick-off. Kalshi has no
+   * kick-off field; its occurrence_datetime is an estimated finish (~kick-off + 2-3 h), so we use
+   * occurrence − 4 h, which is at or before kick-off. Empty when unknown.
+   */
+  bettableUntil?: string;
   bttsEventTicker?: string;
   bttsSeriesTicker?: string;
   btts?: BttsMarket;
@@ -302,6 +314,7 @@ export async function fetchGoalsMatches(environment: string = 'production'): Pro
             matchTitle: `${teamA} vs ${teamB}`,
             matchDate: extractMatchDate(ev.eventTicker),
             expirationTime: (ev.markets?.[0]?.expiration_time) ?? '',
+            bettableUntil: kalshiBettableUntil(ev.markets?.[0]),
             totalLadder: [],
           };
           byKey.set(key, gm);
@@ -365,6 +378,7 @@ export async function fetchGoalsMatchByKey(
     matchTitle: `${teamA} vs ${teamB}`,
     matchDate: extractMatchDate(srcEvent),
     expirationTime: (totalEv?.markets?.[0]?.expiration_time) ?? (bttsEv?.markets?.[0]?.expiration_time) ?? '',
+    bettableUntil: kalshiBettableUntil(totalEv?.markets?.[0] ?? bttsEv?.markets?.[0]),
     totalLadder: [],
   };
   if (bttsEv) {

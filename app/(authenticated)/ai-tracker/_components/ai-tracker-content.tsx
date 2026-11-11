@@ -93,7 +93,11 @@ function pct(x: number | null | undefined, digits = 1): string {
 export function AiTrackerContent() {
   const [picks, setPicks] = useState<ShadowPick[]>([]);
   const [stats, setStats] = useState<ShadowStats | null>(null);
-  const [config, setConfig] = useState<{ stakeDollars: number; minEdgeCents: number; minProb: number } | null>(null);
+  const [config, setConfig] = useState<{
+    stakeDollars: number; minEdgeCents: number; minProb: number;
+    autoRun?: string | null;
+    lastRun?: { at: string; automated: boolean; matchesScanned: number; researched: number; picksRecorded: number; skippedNoEdge: number; errors: number } | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [settling, setSettling] = useState(false);
@@ -176,6 +180,23 @@ export function AiTrackerContent() {
                 logs it in demo mode at a flat {config ? `$${config.stakeDollars}` : '$10'} stake. No orders are ever sent —
                 this is a clean, selection-bias-free record of whether the AI&apos;s best reads actually win.
               </p>
+              {(config?.autoRun || config?.lastRun) && (
+                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  {config?.autoRun && (
+                    <Badge variant="outline" className="font-mono text-[10px]">Auto-runs {config.autoRun}</Badge>
+                  )}
+                  {config?.lastRun ? (
+                    <span>
+                      Last {config.lastRun.automated ? 'scheduled' : 'manual'} run{' '}
+                      {new Date(config.lastRun.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      {' '}— researched {config.lastRun.researched}, new picks {config.lastRun.picksRecorded}, no edge {config.lastRun.skippedNoEdge}
+                      {config.lastRun.errors > 0 ? `, errors ${config.lastRun.errors}` : ''}
+                    </span>
+                  ) : (
+                    <span>No run yet since the last restart.</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -307,7 +328,7 @@ export function AiTrackerContent() {
               <div className="py-12 text-center space-y-2">
                 <p className="text-sm text-muted-foreground">No shadow picks yet.</p>
                 <p className="text-xs text-muted-foreground">
-                  Hit <span className="font-medium text-foreground">Run analysis</span> — the engine will scan every tradeable
+                  {config?.autoRun ? `It runs on its own ${config.autoRun}, or hit ` : 'Hit '}<span className="font-medium text-foreground">Run analysis</span> — the engine will scan every tradeable
                   match, research it, and record the single best positive-EV bet it finds on each one.
                 </p>
               </div>
