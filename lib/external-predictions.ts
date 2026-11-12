@@ -94,7 +94,7 @@ async function upsertPrediction(row: {
   confidence?: number | null;
   advice?: string | null;
   rawPayload?: any;
-}): Promise<void> {
+}): Promise<boolean> /* true = new prediction, false = refreshed an existing one */ {
   const data = {
     source: row.source,
     league: row.league,
@@ -112,17 +112,21 @@ async function upsertPrediction(row: {
     rawPayload: row.rawPayload ? JSON.stringify(row.rawPayload).slice(0, 4000) : null,
     fetchedAt: new Date(),
   };
+  const where = { source_matchKey_market: { source: row.source, matchKey: row.matchKey, market: row.market } };
+  const existed = await prisma.externalPrediction.findUnique({ where, select: { id: true } });
   await prisma.externalPrediction.upsert({
-    where: { source_matchKey_market: { source: row.source, matchKey: row.matchKey, market: row.market } },
+    where,
     // Never clobber a graded row — a settled prediction is the historical record.
     update: { probability: data.probability, confidence: data.confidence, advice: data.advice, fetchedAt: data.fetchedAt },
     create: data,
   });
+  return !existed;
 }
 
-async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number; errors: number }> {
-  if (!process.env.API_FOOTBALL_KEY) return { added: 0, errors: 0 };
+async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number; refreshed: number; errors: number }> {
+  if (!process.env.API_FOOTBALL_KEY) return { added: 0, refreshed: 0, errors: 0 };
   let added = 0;
+  let refreshed = 0;
   let errors = 0;
   for (const m of matches) {
     try {
@@ -133,7 +137,7 @@ async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number
       // 1) Match result forecast.
       if (p.winnerName) {
         const pickIsA = p.teamAIsHome ? p.winnerName === p.homeTeam : p.winnerName === p.awayTeam;
-        await upsertPrediction({
+        if (await upsertPrediction({
           source: 'api_football',
           league: m.league,
           matchKey: key,
@@ -146,13 +150,12 @@ async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number
           probability: (pickIsA ? p.percentTeamA : p.percentTeamB) ?? null,
           advice: p.advice || p.winnerComment,
           rawPayload: p,
-        });
-        added++;
+        })) added++; else refreshed++;
       }
 
       // 2) Total-goals advice ("+2.5" / "-2.5").
       if (p.totalGoalsDirection && p.totalGoalsLine != null) {
-        await upsertPrediction({
+        if (await upsertPrediction({
           source: 'api_football',
           league: m.league,
           matchKey: key,
@@ -165,14 +168,13 @@ async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number
           line: p.totalGoalsLine,
           advice: p.advice,
           rawPayload: { underOver: p.underOver },
-        });
-        added++;
+        })) added++; else refreshed++;
       }
     } catch {
       errors++;
     }
   }
-  return { added, errors };
+  return { added, refreshed, errors };
 }
 
 // ─────────────────────────── ingest: FootyStats ───────────────────────────
@@ -209,9 +211,9 @@ async function fetchFootystatsToday(): Promise<FootyRow[] | null> {
   return rows;
 }
 
-async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number; needsKey: boolean; matched: number }> {
+async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number; refreshed: number; needsKey: boolean; matched: number }> {
   const rows = await fetchFootystatsToday();
-  if (rows == null) return { added: 0, needsKey: true, matched: 0 };
+  if (rows == null) return { added: 0, refreshed: 0, needsKey: true, matched: 0 };
 
   const byKey = new Map<string, FootyRow>();
   for (const r of rows) {
@@ -221,6 +223,7 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
   }
 
   let added = 0;
+  let refreshed = 0;
   let matched = 0;
   for (const m of matches) {
     const key = normalizeMatchKey(m.teamA, m.teamB, m.matchDate);
@@ -239,7 +242,7 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
     // Mathematical over/under 2.5 potential (0-100).
     if (typeof r.o25_potential === 'number') {
       const prob = r.o25_potential / 100;
-      await upsertPrediction({
+      if (await upsertPrediction({
         ...base,
         source: 'footystats_math',
         market: 'total_goals',
@@ -248,14 +251,13 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
         probability: prob >= 0.5 ? prob : 1 - prob,
         advice: `o25 potential ${r.o25_potential}%${r.avg_potential != null ? `, avg goals potential ${r.avg_potential}` : ''}`,
         rawPayload: { o25_potential: r.o25_potential, u25_potential: r.u25_potential, avg_potential: r.avg_potential },
-      });
-      added++;
+      })) added++; else refreshed++;
     }
 
     // BTTS potential (0-100).
     if (typeof r.btts_potential === 'number') {
       const prob = r.btts_potential / 100;
-      await upsertPrediction({
+      if (await upsertPrediction({
         ...base,
         source: 'footystats',
         market: 'btts',
@@ -263,17 +265,16 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
         probability: prob >= 0.5 ? prob : 1 - prob,
         advice: `BTTS potential ${r.btts_potential}%`,
         rawPayload: { btts_potential: r.btts_potential },
-      });
-      added++;
+      })) added++; else refreshed++;
     }
   }
-  return { added, needsKey: false, matched };
+  return { added, refreshed, needsKey: false, matched };
 }
 
 export interface IngestSummary {
   matchesConsidered: number;
-  apiFootball: { added: number; errors: number; enabled: boolean; paused?: string };
-  footystats: { added: number; matched: number; needsKey: boolean };
+  apiFootball: { added: number; refreshed: number; errors: number; enabled: boolean; paused?: string };
+  footystats: { added: number; refreshed?: number; matched: number; needsKey: boolean };
 }
 
 /** Pull fresh predictions for every currently-tradeable goals match. */

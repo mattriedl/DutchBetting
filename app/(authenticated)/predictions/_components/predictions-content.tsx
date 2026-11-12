@@ -116,8 +116,8 @@ export function PredictionsContent() {
       if (!res.ok) throw new Error(data?.error ?? 'Ingest failed');
       const s = data.summary;
       toast.success(
-        `${s.matchesConsidered} matches scanned · API-Football stored ${s.apiFootball.added} · FootyStats ${
-          s.footystats.needsKey ? 'skipped (no key)' : `matched ${s.footystats.matched}, stored ${s.footystats.added}`
+        `${s.matchesConsidered} matches scanned · API-Football ${s.apiFootball.added} new, ${s.apiFootball.refreshed ?? 0} refreshed · FootyStats ${
+          s.footystats.needsKey ? 'skipped (no key)' : `matched ${s.footystats.matched}, ${s.footystats.added} new, ${s.footystats.refreshed ?? 0} refreshed`
         }`,
       );
       await load(statusFilter, sourceFilter);

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const summary = await ingestExternalPredictions();
-    recordRun('predictions-ingest', caller.automated, `${summary.matchesConsidered} matches, added ${summary.apiFootball.added} API-Football + ${summary.footystats.added} FootyStats${summary.apiFootball.paused ? ' (API-Football paused)' : ''}`);
+    recordRun('predictions-ingest', caller.automated, `${summary.matchesConsidered} matches, ${summary.apiFootball.added + summary.footystats.added} new + ${summary.apiFootball.refreshed + (summary.footystats.refreshed ?? 0)} refreshed predictions${summary.apiFootball.paused ? ' (API-Football paused)' : ''}`);
     return NextResponse.json({ success: true, automated: caller.automated, summary });
   } catch (error: any) {
     console.error('[ExternalPredictions API] ingest error:', error?.message);
