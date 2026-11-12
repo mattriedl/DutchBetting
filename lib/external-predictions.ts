@@ -123,12 +123,27 @@ async function upsertPrediction(row: {
   return !existed;
 }
 
-async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number; refreshed: number; errors: number }> {
-  if (!process.env.API_FOOTBALL_KEY) return { added: 0, refreshed: 0, errors: 0 };
+/**
+ * A match whose API-Football prediction was fetched this recently is not re-fetched. Predictions
+ * barely move hour to hour, and each fetch costs several requests from the daily quota (shared
+ * with the live site): hourly re-fetching of ~120 matches was using most of the 7,500/day.
+ */
+const API_FOOTBALL_REFRESH_MS = 6 * 60 * 60 * 1000;
+
+async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number; refreshed: number; skippedRecent: number; errors: number }> {
+  if (!process.env.API_FOOTBALL_KEY) return { added: 0, refreshed: 0, skippedRecent: 0, errors: 0 };
   let added = 0;
   let refreshed = 0;
+  let skippedRecent = 0;
   let errors = 0;
+  const recent = new Set(
+    (await prisma.externalPrediction.findMany({
+      where: { source: 'api_football', fetchedAt: { gte: new Date(Date.now() - API_FOOTBALL_REFRESH_MS) } },
+      select: { matchKey: true },
+    })).map(r => r.matchKey),
+  );
   for (const m of matches) {
+    if (recent.has(normalizeMatchKey(m.teamA, m.teamB, m.matchDate))) { skippedRecent++; continue; }
     try {
       const p = await fetchPredictions(m.teamA, m.teamB);
       if (!p) continue;
@@ -174,7 +189,7 @@ async function ingestApiFootball(matches: GoalsMatch[]): Promise<{ added: number
       errors++;
     }
   }
-  return { added, refreshed, errors };
+  return { added, refreshed, skippedRecent, errors };
 }
 
 // ─────────────────────────── ingest: FootyStats ───────────────────────────
@@ -273,7 +288,7 @@ async function ingestFootystats(matches: GoalsMatch[]): Promise<{ added: number;
 
 export interface IngestSummary {
   matchesConsidered: number;
-  apiFootball: { added: number; refreshed: number; errors: number; enabled: boolean; paused?: string };
+  apiFootball: { added: number; refreshed: number; skippedRecent: number; errors: number; enabled: boolean; paused?: string };
   footystats: { added: number; refreshed?: number; matched: number; needsKey: boolean };
 }
 

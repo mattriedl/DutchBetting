@@ -61,7 +61,9 @@ turned that positive. Do **not** price EV off FootyStats `_potential` percentage
 `{"limit": N}` (matches researched per run; the scheduled job uses 6).
 
 ### External Predictions (`lib/external-predictions.ts`)
-`STALE_ABANDON_MS = 14 days` (void unresolvable rows). Settle cutoff is now − 12 h.
+`STALE_ABANDON_MS = 14 days` (void unresolvable rows). Settle cutoff is now − 12 h (matchDate is stored at 12:00 UTC,
+so a day's games are graded from 00:00 UTC the next day). `API_FOOTBALL_REFRESH_MS = 6 h`: a match's API-Football
+prediction is not re-fetched within 6 h of the last fetch, to protect the 7,500/day quota (shared with the live site).
 
 ### Calibration (`lib/calibration.ts`)
 `MIN_SAMPLE_FOR_PROB_CALIBRATION = 60`, `MIN_SAMPLE_FOR_CORRECTION = 25`, `MAX_ABS_XG_BIAS = 0.75`,
