@@ -7,7 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import { authorizeCaller } from '@/lib/automation-auth';
-import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
+import { kalshiTakerFeeCents, kalshiEffectiveCents } from '@/lib/kalshi-fees';
 import { fetchClimateMarkets, parseTemperatureMarket } from '@/lib/kalshi-api';
 import { fetchNwsForecast, CITY_COORDINATES } from '@/lib/nws-api';
 import { findDutchPositions, calculateDutchBet, calculateUniformContracts } from '@/lib/dutch-betting';
@@ -336,7 +336,8 @@ export async function POST(req: Request) {
       // totalCostBid/Ask = sum of implied probabilities (sum of price_cents/100)
       // Bid = 1¢ less per contract (what you could sell at), Ask = actual cost to buy
       const totalCostBid = selectedBins.reduce((s: number, b: any) => s + (Math.max(0, (b.yesPrice ?? 0) - 1) / 100), 0);
-      const totalCostAsk = selectedBins.reduce((s: number, b: any) => s + (((b.yesPrice ?? 0) + 1) / 100), 0);
+      // Ask = take liquidity, so include Kalshi's taker fee; Bid = resting limit, no fee on climate series.
+      const totalCostAsk = selectedBins.reduce((s: number, b: any) => s + kalshiEffectiveCents((b.yesPrice ?? 0) + 1) / 100, 0);
 
       const centerPosition = analysis.positions.length > 1 ? analysis.positions[1] : analysis.positions[0];
 

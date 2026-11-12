@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
-import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
+import { kalshiTakerFeeCents, kalshiEffectiveCents } from '@/lib/kalshi-fees';
 import { prisma } from '@/lib/db';
 import { kalshiFetch } from '@/lib/kalshi-api';
 
@@ -129,7 +129,8 @@ export async function POST(req: Request) {
     if (badLeg) {
       return NextResponse.json({ error: `No valid price for ${badLeg.label || badLeg.ticker}. Refresh the market and try again.` }, { status: 400 });
     }
-    const costPerUnit = legs.reduce((sum: number, l: any) => sum + l.bidPrice, 0);
+    // Per-unit basket cost including Kalshi fees: sizing and the profitability check are net of fees.
+    const costPerUnit = legs.reduce((sum: number, l: any) => sum + kalshiEffectiveCents(l.bidPrice), 0);
     if (costPerUnit >= 100 || costPerUnit <= 0) {
       return NextResponse.json({ error: 'Basket no longer profitable after slippage' }, { status: 400 });
     }

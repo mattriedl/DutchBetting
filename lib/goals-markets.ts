@@ -22,7 +22,7 @@
 
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { calibrateProb, hasProbCalibration, type CalibrationParams } from '@/lib/calibration';
-import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
+import { kalshiTakerFeeCents, kalshiEffectiveCents } from '@/lib/kalshi-fees';
 
 // League code (the token between KX and BTTS/TOTAL) + display name. Series that
 // aren't currently live simply return zero events and are skipped, so probing a
@@ -420,6 +420,9 @@ export function analyzeGoals(
     calibration?: CalibrationParams | null;
   } = {}
 ): GoalsAnalysis {
+  // Edge is judged on what a contract really costs: Kalshi adds a taker fee; Polymarket has none.
+  // (pick.cost stays the raw price — it is the order price, and the fee is added at placement.)
+  const netCost = (c: number) => (match.source === 'polymarket' ? c : kalshiEffectiveCents(c));
   const minEdge = opts.minEdge ?? 3;
   const lowScoringOnly = opts.lowScoringOnly ?? true;
   const minLowScore = opts.minLowScore ?? 0;
@@ -458,7 +461,7 @@ export function analyzeGoals(
       marketTicker: tl.ticker, seriesTicker: match.totalSeriesTicker ?? '', eventTicker: match.totalEventTicker ?? '',
       cost: overCost, bid: tl.yesBid, impliedProb: overCost / 100,
       modelProb: overModel, rawModelProb: overRaw,
-      edge: typeof overModel === 'number' ? Math.round((overModel * 100 - overCost) * 100) / 100 : undefined,
+      edge: typeof overModel === 'number' ? Math.round((overModel * 100 - netCost(overCost)) * 100) / 100 : undefined,
     });
     // Under — only genuinely low-scoring lines (Under 2.5 and below) get the
     // proven edge-side treatment. Under 3.5+ (which includes 3-goal games, a
@@ -469,7 +472,7 @@ export function analyzeGoals(
       marketTicker: tl.ticker, seriesTicker: match.totalSeriesTicker ?? '', eventTicker: match.totalEventTicker ?? '',
       cost: underCost, bid: 100 - tl.yesAsk, impliedProb: underCost / 100,
       modelProb: underModel, rawModelProb: underRaw,
-      edge: typeof underModel === 'number' ? Math.round((underModel * 100 - underCost) * 100) / 100 : undefined,
+      edge: typeof underModel === 'number' ? Math.round((underModel * 100 - netCost(underCost)) * 100) / 100 : undefined,
     });
   }
 
@@ -489,7 +492,7 @@ export function analyzeGoals(
       marketTicker: b.ticker, seriesTicker: match.bttsSeriesTicker ?? '', eventTicker: match.bttsEventTicker ?? '',
       cost: yesCost, bid: b.yesBid, impliedProb: yesCost / 100,
       modelProb: yesModel, rawModelProb: yesRaw,
-      edge: typeof yesModel === 'number' ? Math.round((yesModel * 100 - yesCost) * 100) / 100 : undefined,
+      edge: typeof yesModel === 'number' ? Math.round((yesModel * 100 - netCost(yesCost)) * 100) / 100 : undefined,
     });
     picks.push({
       marketType: 'btts', side: 'btts_no',
@@ -497,7 +500,7 @@ export function analyzeGoals(
       marketTicker: b.ticker, seriesTicker: match.bttsSeriesTicker ?? '', eventTicker: match.bttsEventTicker ?? '',
       cost: noCost, bid: 100 - b.yesAsk, impliedProb: noCost / 100,
       modelProb: noModel, rawModelProb: noRaw,
-      edge: typeof noModel === 'number' ? Math.round((noModel * 100 - noCost) * 100) / 100 : undefined,
+      edge: typeof noModel === 'number' ? Math.round((noModel * 100 - netCost(noCost)) * 100) / 100 : undefined,
     });
   }
 

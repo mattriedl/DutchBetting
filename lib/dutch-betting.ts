@@ -1,3 +1,5 @@
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
+
 export interface Position {
   ticker: string;
   range: string;
@@ -56,7 +58,9 @@ export function calculateDutchBet(
   const decimalOdds = safePositions?.map((p: any) => {
     const price = p?.odds ?? 0;
     if (price <= 0 || price >= 100) return Infinity;
-    return 100 / price; // Convert cents price to decimal odds
+    // Decimal odds AFTER the Kalshi taker fee: a contract really costs price + fee, so margins,
+    // viability and ratings are net of fees (a basket that only "wins" on raw prices is not viable).
+    return 100 / kalshiEffectiveCents(price);
   }) ?? [];
 
   // Sum of implied probabilities (1/decimal_odds = price/100)
@@ -270,7 +274,8 @@ export function calculateUniformContracts(
   totalStakeCents: number
 ): number {
   const validPrices = (bidPrices ?? []).filter((p) => p > 0 && p < 100);
-  const sumPrices = validPrices.reduce((s, p) => s + p, 0);
+  // Size on price + fee so the basket's total cost including Kalshi fees stays within the stake.
+  const sumPrices = validPrices.reduce((s, p) => s + kalshiEffectiveCents(p), 0);
   if (sumPrices <= 0) return 0;
   return Math.max(1, Math.floor(totalStakeCents / sumPrices));
 }

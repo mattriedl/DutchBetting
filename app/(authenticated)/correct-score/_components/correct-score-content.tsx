@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { FadeIn, Stagger, StaggerItem } from '@/components/animations';
 import { CalibrationPanel } from '@/components/calibration-panel';
 import { formatOdds, type OddsFormat, ODDS_FORMAT_LABELS } from '@/lib/odds-format';
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
 import {
   Goal,
   Loader2,
@@ -800,8 +801,9 @@ function rebuildBasket(all: Scoreline[], excluded: Set<string>, targetPicks: num
   let cumCoverage = 0;
   for (const s of ranked) {
     if (picked.length >= targetPicks) break;
-    if (cumCost + s.ask >= 100) continue; // would break guaranteed profit; try next
-    cumCost += s.ask;
+    const eff = kalshiEffectiveCents(s.ask); // price + Kalshi taker fee (same as server analysis)
+    if (cumCost + eff >= 100) continue; // would break guaranteed profit; try next
+    cumCost += eff;
     cumCoverage += probOf(s);
     picked.push(s);
   }
@@ -814,7 +816,7 @@ function rebuildBasket(all: Scoreline[], excluded: Set<string>, targetPicks: num
   return {
     numPicks: picked.length,
     scorelines: picked,
-    combinedCost: cumCost,
+    combinedCost: Math.round(cumCost * 10) / 10,
     dutchProfit,
     dutchMargin: Math.round(dutchMargin * 100) / 100,
     coverage: Math.round(coverage * 1000) / 1000,

@@ -25,6 +25,7 @@ import { researchGoalsMatch } from '@/lib/goals-research';
 import { getActiveCalibration } from '@/lib/calibration';
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { fetchFinalScoreByTeams } from '@/lib/api-football';
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
 
 /** Fixed demo stake per shadow pick, so ROI is comparable across picks. */
 export const SHADOW_STAKE_DOLLARS = 10;
@@ -156,7 +157,7 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number; 
       }
 
       // EV per contract in cents: p*100 - cost.
-      const evPerContract = prob * 100 - pick.cost;
+      const evPerContract = prob * 100 - (app === 'goals' ? kalshiEffectiveCents(pick.cost) : pick.cost);
 
       const data = {
         userId: opts.userId,

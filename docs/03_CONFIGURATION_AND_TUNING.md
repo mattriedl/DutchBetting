@@ -76,7 +76,11 @@ LLM model `gpt-5.4-mini` (string in each file's fetch body), Dixon-Coles `DC_RHO
 Kalshi taker fee `roundUp(0.07 × contracts × P × (1 − P))` per leg (fee schedule effective 2026-07-07) is added to
 the recorded cost of every Kalshi bet (Goals, Correct Score, Soccer, weather Auto-Bet, AI Tracker Kalshi picks) and
 stored in `feeCents`, so net profit is after fees. Goals stake sizing keeps cost + fee within the stake. Polymarket:
-no fee. Not yet included: the Dutch/edge *analysis* (margins, EV filters) still uses prices without fees.
+no fee. The *analysis* is net of fees too: weather Dutch odds/margins/viability/ratings (`lib/dutch-betting.ts`),
+Soccer favourite+draw margins, Kalshi Correct Score basket cost/margin/EV, Goals edges for Kalshi markets and AI
+Tracker EV all use `kalshiEffectiveCents(price)` = price + 0.07·P·(1−P) per contract. Stake sizing (uniform contracts,
+soccer pairs, correct-score units) also uses the effective price. Backtest and the Dashboard demo-pick tracker add the
+fee to the "ask" (taker) scenario only; the "bid" (resting limit) scenario pays no fee on climate series.
 
 ### API clients
 - `api-football.ts`: `MIN_REQUEST_GAP_MS = 350` (~3 req/s; lowering it risks the provider's temporary

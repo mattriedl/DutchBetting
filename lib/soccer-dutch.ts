@@ -9,6 +9,7 @@
  */
 
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
 
 // Supported soccer series on Kalshi
 export const SOCCER_SERIES = [
@@ -236,12 +237,13 @@ export function analyzeSoccerDutch(match: SoccerMatch): SoccerDutchAnalysis {
   const underdogName = favorite === 'teamA' ? match.teamB : match.teamA;
 
   // Dutch bet: Favorite Win + Draw
-  const combinedCost = favWinAsk + drawAsk;
+  // Costs include the Kalshi taker fee per contract, so margin/viability are net of fees.
+  const combinedCost = kalshiEffectiveCents(favWinAsk) + kalshiEffectiveCents(drawAsk);
   const dutchProfit = 100 - combinedCost;
   const dutchMargin = combinedCost > 0 ? (dutchProfit / combinedCost) * 100 : 0;
 
   // Reverse Dutch: Underdog Win + Draw (alternative strategy)
-  const reverseCombinedCost = underdogWinAsk + drawAsk;
+  const reverseCombinedCost = kalshiEffectiveCents(underdogWinAsk) + kalshiEffectiveCents(drawAsk);
   const reverseDutchMargin = reverseCombinedCost > 0
     ? ((100 - reverseCombinedCost) / reverseCombinedCost) * 100
     : 0;
@@ -303,7 +305,8 @@ export function calculateSoccerStake(
   // Apply slippage to each leg
   const favWinBidPrice = Math.min(analysis.favWinAsk + slippageCents, 99);
   const drawBidPrice = Math.min(analysis.drawAsk + slippageCents, 99);
-  const costPerPair = favWinBidPrice + drawBidPrice;
+  // Per-pair cost including Kalshi fees (sizing keeps price + fees within the stake).
+  const costPerPair = kalshiEffectiveCents(favWinBidPrice) + kalshiEffectiveCents(drawBidPrice);
 
   if (costPerPair >= 100 || costPerPair <= 0) {
     return {

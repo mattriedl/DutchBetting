@@ -16,3 +16,19 @@ export function kalshiTakerFeeCents(contracts: number, priceCents: number): numb
   const p = priceCents / 100;
   return Math.ceil(KALSHI_TAKER_RATE * contracts * p * (1 - p) * 100 - 1e-9);
 }
+
+/**
+ * Fee per contract in cents (fractional, before rounding) — for ANALYSIS (margins, edges,
+ * viability), where we need a per-contract figure independent of order size.
+ * Peaks at 1.75¢ for a 50¢ contract.
+ */
+export function kalshiFeePerContractCents(priceCents: number): number {
+  if (!(priceCents > 0 && priceCents < 100)) return 0;
+  const p = priceCents / 100;
+  return KALSHI_TAKER_RATE * p * (1 - p) * 100;
+}
+
+/** What one contract really costs on Kalshi, in cents: price + taker fee. */
+export function kalshiEffectiveCents(priceCents: number): number {
+  return priceCents + kalshiFeePerContractCents(priceCents);
+}

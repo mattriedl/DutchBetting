@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
 
 const SERIES_CITY_MAP: Record<string, string> = {
   KXHIGHNY: 'New York',
@@ -445,8 +446,10 @@ async function computeRealisticSimulation(sigmaLevels: number[]) {
 
         const costBid = selBins.reduce((s: number, b: any) =>
           s + Math.max(0.01, (b.realPrice ?? 0.10) - 0.01), 0);
+        // Taking the ask pays Kalshi's taker fee; the resting-bid scenario pays none (climate
+        // series have no maker fee in the 2026-07-07 schedule).
         const costAsk = selBins.reduce((s: number, b: any) =>
-          s + ((b.realPrice ?? 0.10) + 0.01), 0);
+          s + kalshiEffectiveCents(Math.round(((b.realPrice ?? 0.10) + 0.01) * 100)) / 100, 0);
 
         const covers = selIdx.includes(winnerIdx);
         const profitBid = covers ? (1 - costBid) : -costBid;

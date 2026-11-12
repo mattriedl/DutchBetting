@@ -14,6 +14,7 @@
  */
 
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
+import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
 
 // Candidate soccer exact-score series on Kalshi. Series that aren't currently
 // live simply return zero events and are skipped. The ones marked (live) were
@@ -314,7 +315,7 @@ export function analyzeCorrectScore(
 
   for (let k = 0; k < ranked.length; k++) {
     const s = ranked[k];
-    cumCost += s.ask;
+    cumCost += kalshiEffectiveCents(s.ask); // price + Kalshi taker fee
     cumCoverage += probOf(s);
     picked.push(s);
     if (cumCost >= 100) break; // no longer a guaranteed-profit Dutch basket
@@ -323,14 +324,14 @@ export function analyzeCorrectScore(
     if (numPicks < 2) continue;
 
     const dutchProfit = 100 - cumCost;
-    const dutchMargin = cumCost > 0 ? (dutchProfit / cumCost) * 100 : 0;
+    const dutchMargin = cumCost > 0 ? (dutchProfit / cumCost) * 100 : 0; // net of fees
     const coverage = Math.min(cumCoverage, 1);
     const expectedValue = coverage * 100 - cumCost;
 
     baskets.push({
       numPicks,
       scorelines: [...picked],
-      combinedCost: cumCost,
+      combinedCost: Math.round(cumCost * 10) / 10, // cents incl. fees
       dutchProfit,
       dutchMargin: Math.round(dutchMargin * 100) / 100,
       coverage: Math.round(coverage * 1000) / 1000,
