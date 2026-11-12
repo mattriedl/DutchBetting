@@ -17,6 +17,7 @@
 import { ClobClient, Side, OrderType, SignatureTypeV2, AssetType } from '@polymarket/clob-client-v2';
 import type { ApiKeyCreds } from '@polymarket/clob-client-v2';
 import { ethers } from 'ethers';
+import { polymarketFeeSpec, type FeeSpec } from '@/lib/trading-fees';
 
 const GAMMA_HOST = 'https://gamma-api.polymarket.com';
 const CLOB_HOST = 'https://clob.polymarket.com';
@@ -37,6 +38,7 @@ export interface PolyScoreMarket {
   lastCents: number;        // last trade price in cents
   tickSize: number;         // 0.001 or 0.01 (dollars)
   minOrderSize: number;     // minimum contracts per order (usually 5)
+  fee: FeeSpec;             // this market's taker fee schedule (sports: 5%)
   acceptingOrders: boolean;
   negRisk: boolean;
   isAnyOther: boolean;      // true for the "Any Other Score" catch-all leg
@@ -136,6 +138,7 @@ function parseMarket(mk: any): PolyScoreMarket | null {
     lastCents: last,
     tickSize: parseFloat(String(mk?.orderPriceMinTickSize ?? '0.01')) || 0.01,
     minOrderSize: parseInt(String(mk?.orderMinSize ?? '5'), 10) || 5,
+    fee: polymarketFeeSpec(mk),
     acceptingOrders: mk?.acceptingOrders !== false,
     negRisk: mk?.negRisk === true,
     isAnyOther,

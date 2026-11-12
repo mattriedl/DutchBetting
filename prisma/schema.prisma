@@ -340,6 +340,7 @@ model PolymarketBetOrder {
   numPicks       Int
   scorelines     String   @db.Text // JSON [{tokenId, label, priceCents, contracts, orderId, status}]
   totalCost      Float    @default(0) // actual cost in cents
+  feeCents       Int? // taker fee included in totalCost (cents)
   combinedCost   Int // sum of leg buy prices (cents per unit)
   dutchMargin    Float
   contracts      Int      @default(0)

@@ -23,6 +23,7 @@
  */
 
 import type { GoalsMatch, BttsMarket, TotalLine } from '@/lib/goals-markets';
+import { polymarketFeeSpec } from '@/lib/trading-fees';
 
 const GAMMA_HOST = 'https://gamma-api.polymarket.com';
 const SOCCER_TAG_ID = 100639; // Gamma "Soccer" tag
@@ -239,6 +240,7 @@ function buildGoalsMatchFromEvent(ev: any): GoalsMatch | null {
           yesAsk: mid,
           yesBid: mid,
           last: dollarsToCents(mk?.lastTradePrice),
+          fee: polymarketFeeSpec(mk),
         });
       }
       continue;
@@ -253,6 +255,7 @@ function buildGoalsMatchFromEvent(ev: any): GoalsMatch | null {
           yesAsk: mid,
           yesBid: mid,
           last: dollarsToCents(mk?.lastTradePrice),
+          fee: polymarketFeeSpec(mk),
         };
       }
     }

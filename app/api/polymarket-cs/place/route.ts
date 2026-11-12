@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import { placeClobBuyOrder, getWalletAddress, fetchBalanceAllowanceDollars } from '@/lib/polymarket-api';
+import { effectiveCents, takerFeeCents, POLYMARKET_DEFAULT_FEE, type FeeSpec } from '@/lib/trading-fees';
 
 /**
  * POST /api/polymarket-cs/place
@@ -53,6 +54,15 @@ export async function POST(req: Request) {
     let stakeArg = totalStake ?? defaultStake;
     if (stakeArg > maxStake) stakeArg = maxStake;
 
+    // Taker fee per leg: the market's own schedule as sent with the basket (sanity-clamped),
+    // falling back to Polymarket's sports schedule.
+    const legFee = (f: any): FeeSpec => {
+      const rate = Number(f?.rate), exponent = Number(f?.exponent);
+      return Number.isFinite(rate) && rate >= 0 && rate <= 0.2
+        ? { rate, exponent: Number.isFinite(exponent) && exponent > 0 && exponent <= 3 ? exponent : 1 }
+        : POLYMARKET_DEFAULT_FEE;
+    };
+
     // Build legs with tick-rounded buy prices.
     const legs = scorelines.map((s: any) => {
       const tick = (s?.tickSize && s.tickSize > 0 ? s.tickSize : 0.01) as number;
@@ -66,6 +76,7 @@ export async function POST(req: Request) {
         buyPriceCents,
         buyPriceDollars: buyPriceCents / 100,
         tickSize: tick,
+        fee: legFee(s?.fee),
         modelProb: typeof s?.modelProb === 'number' ? s.modelProb : null,
       };
     });
@@ -74,7 +85,8 @@ export async function POST(req: Request) {
     if (badLeg) {
       return NextResponse.json({ error: `No valid price for ${badLeg.label || 'a scoreline'}. Refresh the market and try again.` }, { status: 400 });
     }
-    const costPerUnit = legs.reduce((sum: number, l: any) => sum + l.buyPriceCents, 0);
+    // Per-unit basket cost including taker fees — sizing and the profitability check are net of fees.
+    const costPerUnit = legs.reduce((sum: number, l: any) => sum + effectiveCents(l.buyPriceCents, l.fee), 0);
     if (costPerUnit >= 100 || costPerUnit <= 0) {
       return NextResponse.json({ error: 'Basket no longer profitable after slippage' }, { status: 400 });
     }
@@ -87,7 +99,8 @@ export async function POST(req: Request) {
 
     const stakeCents = Math.round(stakeArg * 100);
     const contracts = Math.max(minOrderSize, Math.floor(stakeCents / costPerUnit));
-    const totalCostCents = contracts * costPerUnit;
+    const plannedFeeCents = legs.reduce((sum: number, l: any) => sum + takerFeeCents(contracts, l.buyPriceCents, l.fee), 0);
+    const totalCostCents = contracts * legs.reduce((sum: number, l: any) => sum + l.buyPriceCents, 0) + plannedFeeCents;
     const totalCostDollars = totalCostCents / 100;
 
     // Daily spend cap across all Polymarket baskets.
@@ -165,6 +178,7 @@ export async function POST(req: Request) {
     const ordered = [...legs].sort((a: any, b: any) => a.buyPriceCents - b.buyPriceCents);
     const placed: any[] = [];
     let realCostCents = 0;
+    let realFeeCents = 0; // taker fees, included in realCostCents
     let allFilled = true;
     let anyFilled = false;
     const errors: string[] = [];
@@ -179,7 +193,7 @@ export async function POST(req: Request) {
           modelProb: leg.modelProb,
           contracts, orderId: `PAPER-${leg.tokenId}`, status: 'matched',
         });
-        realCostCents += contracts * leg.buyPriceCents;
+        { const f = takerFeeCents(contracts, leg.buyPriceCents, leg.fee); realFeeCents += f; realCostCents += contracts * leg.buyPriceCents + f; }
       }
       overallStatus = 'filled';
     } else {
@@ -207,7 +221,7 @@ export async function POST(req: Request) {
         error: result.error,
       });
 
-      if (result.status !== 'failed') realCostCents += contracts * leg.buyPriceCents;
+      if (result.status !== 'failed') { const f = takerFeeCents(contracts, leg.buyPriceCents, leg.fee); realFeeCents += f; realCostCents += contracts * leg.buyPriceCents + f; }
       if (!filled) allFilled = false;
       if (filled || live) anyFilled = true;
       if (result.error) errors.push(`${leg.label}: ${result.error}`);
@@ -237,6 +251,7 @@ export async function POST(req: Request) {
         numPicks: legs.length,
         scorelines: JSON.stringify(placed),
         totalCost: realCostCents,
+        feeCents: realFeeCents,
         combinedCost: combinedCost ?? costPerUnit,
         dutchMargin: dutchMargin ?? 0,
         contracts,

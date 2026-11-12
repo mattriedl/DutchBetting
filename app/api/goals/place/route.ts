@@ -8,6 +8,7 @@ import { kalshiFetch } from '@/lib/kalshi-api';
 import { calculateGoalsStake, fetchGoalsMatchByKey, priceGoalsSide } from '@/lib/goals-markets';
 import { fetchPolymarketGoalsMatchByKey } from '@/lib/polymarket-goals';
 import { placeClobBuyOrder, fetchBalanceAllowanceDollars } from '@/lib/polymarket-api';
+import { KALSHI_FEE, POLYMARKET_DEFAULT_FEE, type FeeSpec } from '@/lib/trading-fees';
 
 /**
  * POST /api/goals/place
@@ -111,6 +112,8 @@ export async function POST(req: Request) {
     const slippageCents = config?.slippageCents ?? 1;
     // Tolerable adverse move (cents) above the shown price before we reject.
     const MAX_ADVERSE_MOVE = Math.max(slippageCents, 3);
+    // Taker fee for this exact market: Kalshi 7%; Polymarket per market (read from the fresh quote).
+    let feeSpec: FeeSpec = betSource === 'polymarket' ? POLYMARKET_DEFAULT_FEE : KALSHI_FEE;
     try {
       const freshMatch = betSource === 'polymarket'
         ? await fetchPolymarketGoalsMatchByKey(matchKey)
@@ -118,6 +121,10 @@ export async function POST(req: Request) {
       const freshPrice = freshMatch
         ? priceGoalsSide(freshMatch, normType, typeof line === 'number' ? line : null, normSide, slippageCents)
         : null;
+      if (freshMatch && betSource === 'polymarket') {
+        const mk = normType === 'btts' ? freshMatch.btts : freshMatch.totalLadder.find(t => t.line === line);
+        if (mk?.fee) feeSpec = mk.fee;
+      }
 
       if (freshPrice != null) {
         if (!paperMode && freshPrice - shownPrice > MAX_ADVERSE_MOVE) {
@@ -148,7 +155,7 @@ export async function POST(req: Request) {
       // paper mode: ignore refresh failure and keep the shown price.
     }
 
-    const { contracts, totalCostCents, feeCents, expectedPayoutCents } = calculateGoalsStake(entryPrice, stakeArg, { kalshiFee: betSource === 'kalshi' });
+    const { contracts, totalCostCents, feeCents, expectedPayoutCents } = calculateGoalsStake(entryPrice, stakeArg, { fee: feeSpec });
     if (contracts <= 0) {
       return NextResponse.json({ error: 'Stake too small for this price' }, { status: 400 });
     }
@@ -299,7 +306,7 @@ export async function POST(req: Request) {
         contracts,
         entryPrice,
         totalCost: `$${(totalCostCents / 100).toFixed(2)}`,
-        kalshiFee: `$${(feeCents / 100).toFixed(2)}`,
+        fee: `$${(feeCents / 100).toFixed(2)}`,
         expectedPayout: `$${(expectedPayoutCents / 100).toFixed(2)}`,
         error: errorMessage ?? undefined,
       },

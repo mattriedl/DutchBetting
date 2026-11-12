@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { FadeIn, Stagger, StaggerItem } from '@/components/animations';
 import { CalibrationPanel } from '@/components/calibration-panel';
+import { effectiveCents, POLYMARKET_DEFAULT_FEE, type FeeSpec } from '@/lib/trading-fees';
 import { formatOdds, type OddsFormat, ODDS_FORMAT_LABELS } from '@/lib/odds-format';
 import {
   Trophy,
@@ -53,6 +54,7 @@ interface Scoreline {
   modelProb?: number;
   tickSize: number;
   minOrderSize: number;
+  fee?: FeeSpec;
   acceptingOrders: boolean;
   isAnyOther: boolean;
 }
@@ -380,7 +382,7 @@ export function PolymarketCSContent() {
           : null,
         scorelines: basket.scorelines.map(s => ({
           tokenId: s.yesTokenId, label: s.label, priceCents: s.ask,
-          tickSize: s.tickSize, minOrderSize: s.minOrderSize,
+          tickSize: s.tickSize, minOrderSize: s.minOrderSize, fee: s.fee,
           modelProb: s.modelProb,
         })),
         combinedCost: basket.combinedCost,
@@ -955,8 +957,9 @@ function rebuildBasket(all: Scoreline[], excluded: Set<string>, targetPicks: num
   let cumCoverage = 0;
   for (const s of ranked) {
     if (picked.length >= targetPicks) break;
-    if (cumCost + s.ask >= 100) continue; // would break guaranteed profit; try next
-    cumCost += s.ask;
+    const eff = effectiveCents(s.ask, s.fee ?? POLYMARKET_DEFAULT_FEE); // price + taker fee (same as server)
+    if (cumCost + eff >= 100) continue; // would break guaranteed profit; try next
+    cumCost += eff;
     cumCoverage += probOf(s);
     picked.push(s);
   }
@@ -969,7 +972,7 @@ function rebuildBasket(all: Scoreline[], excluded: Set<string>, targetPicks: num
   return {
     numPicks: picked.length,
     scorelines: picked,
-    combinedCost: cumCost,
+    combinedCost: Math.round(cumCost * 10) / 10,
     dutchProfit,
     dutchMargin: Math.round(dutchMargin * 100) / 100,
     coverage: Math.round(coverage * 1000) / 1000,

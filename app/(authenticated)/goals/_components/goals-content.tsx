@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { FadeIn, Stagger, StaggerItem } from '@/components/animations';
 import { CalibrationPanel } from '@/components/calibration-panel';
-import { kalshiTakerFeeCents } from '@/lib/kalshi-fees';
+import { takerFeeCents, KALSHI_FEE, POLYMARKET_DEFAULT_FEE, type FeeSpec } from '@/lib/trading-fees';
 import {
   Percent,
   Loader2,
@@ -43,6 +43,7 @@ interface GoalsPick {
   seriesTicker: string;
   eventTicker: string;
   cost: number;
+  fee?: FeeSpec; // taker fee schedule for this market
   bid: number;
   impliedProb: number;
   modelProb?: number;
@@ -853,7 +854,8 @@ function GoalsMatchCard({
     ? (() => {
         const cost = selected.cost;
         const stakeCents = Math.round(stake * 100);
-        const feeFor = (n: number) => (match.source !== 'polymarket' ? kalshiTakerFeeCents(n, cost) : 0);
+        const spec: FeeSpec = selected.fee ?? (match.source === 'polymarket' ? POLYMARKET_DEFAULT_FEE : KALSHI_FEE);
+        const feeFor = (n: number) => takerFeeCents(n, cost, spec);
         let n = Math.max(1, Math.floor(stakeCents / cost));
         while (n > 1 && n * cost + feeFor(n) > stakeCents) n--;
         return { contracts: n, feeCents: feeFor(n), totalCostCents: n * cost + feeFor(n) };
@@ -1172,7 +1174,7 @@ function GoalsMatchCard({
               <div className="rounded-lg bg-muted/20 p-2 text-[11px] text-muted-foreground">
                 Stake ${stake.toFixed(2)} → <span className="text-foreground font-mono">{contracts}</span> contracts •
                 cost <span className="text-foreground font-mono">${totalCost.toFixed(2)}</span>
-                {feeDollars > 0 && <> (incl. <span className="font-mono">${feeDollars.toFixed(2)}</span> Kalshi fee)</>} •
+                {feeDollars > 0 && <> (incl. <span className="font-mono">${feeDollars.toFixed(2)}</span> {match.source === 'polymarket' ? 'Polymarket' : 'Kalshi'} fee)</>} •
                 payout if hit <span className="text-emerald-400 font-mono">${payoutIfHit.toFixed(2)}</span>
               </div>
             )}
@@ -1276,7 +1278,7 @@ function GoalsOrderCard({ order }: { order: GoalsOrder }) {
             <div className="text-xs text-muted-foreground">Cost / Payout</div>
             <div className="text-sm font-mono">${(order.totalCost / 100).toFixed(2)} → ${(order.expectedPayout / 100).toFixed(2)}</div>
             {(order.feeCents ?? 0) > 0 && (
-              <div className="text-[10px] text-muted-foreground">incl. ${((order.feeCents ?? 0) / 100).toFixed(2)} Kalshi fee</div>
+              <div className="text-[10px] text-muted-foreground">incl. ${((order.feeCents ?? 0) / 100).toFixed(2)} {order.source === 'polymarket' ? 'Polymarket' : 'Kalshi'} fee</div>
             )}
             {settled && (
               <div className={`text-sm font-bold font-mono mt-1 ${(order.netProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

@@ -16,6 +16,7 @@ import {
   PolyExactScoreEvent,
   PolyScoreMarket,
 } from '@/lib/polymarket-api';
+import { effectiveCents, POLYMARKET_DEFAULT_FEE, type FeeSpec } from '@/lib/trading-fees';
 
 export interface PolyScoreline {
   conditionId: string;
@@ -32,6 +33,7 @@ export interface PolyScoreline {
   modelProb?: number;       // research probability (0-1) if available
   tickSize: number;
   minOrderSize: number;
+  fee?: FeeSpec;            // taker fee schedule (cost/margin/EV are net of it)
   acceptingOrders: boolean;
   isAnyOther: boolean;
 }
@@ -54,7 +56,7 @@ export interface PolyCorrectScoreMatch {
 export interface PolyBasket {
   numPicks: number;
   scorelines: PolyScoreline[];
-  combinedCost: number;     // sum of picked asks (cents)
+  combinedCost: number;     // sum of picked asks incl. taker fees (cents)
   dutchProfit: number;      // 100 - combinedCost (cents per unit)
   dutchMargin: number;      // (100 - cost) / cost * 100
   coverage: number;         // sum of normalized probs of picked scores (0-1)
@@ -109,6 +111,7 @@ function toScoreline(mk: PolyScoreMarket): PolyScoreline | null {
       impliedProb: mk.yesAskCents / 100,
       tickSize: mk.tickSize,
       minOrderSize: mk.minOrderSize,
+      fee: mk.fee,
       acceptingOrders: mk.acceptingOrders,
       isAnyOther: true,
     };
@@ -134,6 +137,7 @@ function toScoreline(mk: PolyScoreMarket): PolyScoreline | null {
     impliedProb: mk.yesAskCents / 100,
     tickSize: mk.tickSize,
     minOrderSize: mk.minOrderSize,
+    fee: mk.fee,
     acceptingOrders: mk.acceptingOrders,
     isAnyOther: false,
   };
@@ -252,7 +256,7 @@ export function analyzePolyCorrectScore(
 
   for (let k = 0; k < ranked.length; k++) {
     const s = ranked[k];
-    cumCost += s.ask;
+    cumCost += effectiveCents(s.ask, s.fee ?? POLYMARKET_DEFAULT_FEE); // price + taker fee
     cumCoverage += probOf(s);
     picked.push(s);
     if (cumCost >= 100) break;
@@ -268,7 +272,7 @@ export function analyzePolyCorrectScore(
     baskets.push({
       numPicks,
       scorelines: [...picked],
-      combinedCost: cumCost,
+      combinedCost: Math.round(cumCost * 10) / 10,
       dutchProfit,
       dutchMargin: Math.round(dutchMargin * 100) / 100,
       coverage: Math.round(coverage * 1000) / 1000,

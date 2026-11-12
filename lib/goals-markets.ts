@@ -22,7 +22,7 @@
 
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { calibrateProb, hasProbCalibration, type CalibrationParams } from '@/lib/calibration';
-import { kalshiTakerFeeCents, kalshiEffectiveCents } from '@/lib/kalshi-fees';
+import { KALSHI_FEE, POLYMARKET_DEFAULT_FEE, effectiveCents, takerFeeCents, type FeeSpec } from '@/lib/trading-fees';
 
 // League code (the token between KX and BTTS/TOTAL) + display name. Series that
 // aren't currently live simply return zero events and are skipped, so probing a
@@ -78,6 +78,7 @@ export interface BttsMarket {
   yesAsk: number;    // cents to buy YES (Both teams score)
   yesBid: number;    // cents (bid)
   last: number;
+  fee?: FeeSpec;     // Polymarket: this market's taker fee schedule (Kalshi: implied 7%)
 }
 
 export interface TotalLine {
@@ -86,6 +87,7 @@ export interface TotalLine {
   yesAsk: number;    // cents to buy YES = "Over <line>"
   yesBid: number;
   last: number;
+  fee?: FeeSpec;     // Polymarket: this market's taker fee schedule (Kalshi: implied 7%)
 }
 
 export interface GoalsMatch {
@@ -123,7 +125,8 @@ export interface GoalsPick {
   marketTicker: string;
   seriesTicker: string;
   eventTicker: string;
-  cost: number;               // cents to enter this side (ask of the side)
+  cost: number;               // cents to enter this side (ask of the side), BEFORE fees
+  fee?: FeeSpec;              // taker fee schedule for this market (edge is net of it)
   bid: number;                // cents on the other direction (for reference)
   impliedProb: number;        // cost/100 (market implied, includes vig)
   modelProb?: number;         // CALIBRATED model probability (0-1) of THIS side winning
@@ -420,9 +423,12 @@ export function analyzeGoals(
     calibration?: CalibrationParams | null;
   } = {}
 ): GoalsAnalysis {
-  // Edge is judged on what a contract really costs: Kalshi adds a taker fee; Polymarket has none.
-  // (pick.cost stays the raw price — it is the order price, and the fee is added at placement.)
-  const netCost = (c: number) => (match.source === 'polymarket' ? c : kalshiEffectiveCents(c));
+  // Edge is judged on what a contract really costs: price + the exchange's taker fee (Kalshi 7%;
+  // Polymarket per market, sports 5%). pick.cost stays the raw price — it is the order price, and
+  // the fee is added at placement.
+  const feeOf = (m?: { fee?: FeeSpec }): FeeSpec =>
+    match.source === 'polymarket' ? (m?.fee ?? POLYMARKET_DEFAULT_FEE) : KALSHI_FEE;
+  const netCost = (c: number, m?: { fee?: FeeSpec }) => effectiveCents(c, feeOf(m));
   const minEdge = opts.minEdge ?? 3;
   const lowScoringOnly = opts.lowScoringOnly ?? true;
   const minLowScore = opts.minLowScore ?? 0;
@@ -459,9 +465,9 @@ export function analyzeGoals(
       marketType: 'total', line: tl.line, side: 'over',
       label: `Over ${tl.line} Goals`, isLowScoring: false,
       marketTicker: tl.ticker, seriesTicker: match.totalSeriesTicker ?? '', eventTicker: match.totalEventTicker ?? '',
-      cost: overCost, bid: tl.yesBid, impliedProb: overCost / 100,
+      cost: overCost, fee: feeOf(tl), bid: tl.yesBid, impliedProb: overCost / 100,
       modelProb: overModel, rawModelProb: overRaw,
-      edge: typeof overModel === 'number' ? Math.round((overModel * 100 - netCost(overCost)) * 100) / 100 : undefined,
+      edge: typeof overModel === 'number' ? Math.round((overModel * 100 - netCost(overCost, tl)) * 100) / 100 : undefined,
     });
     // Under — only genuinely low-scoring lines (Under 2.5 and below) get the
     // proven edge-side treatment. Under 3.5+ (which includes 3-goal games, a
@@ -470,9 +476,9 @@ export function analyzeGoals(
       marketType: 'total', line: tl.line, side: 'under',
       label: `Under ${tl.line} Goals`, isLowScoring: tl.line <= 2.5,
       marketTicker: tl.ticker, seriesTicker: match.totalSeriesTicker ?? '', eventTicker: match.totalEventTicker ?? '',
-      cost: underCost, bid: 100 - tl.yesAsk, impliedProb: underCost / 100,
+      cost: underCost, fee: feeOf(tl), bid: 100 - tl.yesAsk, impliedProb: underCost / 100,
       modelProb: underModel, rawModelProb: underRaw,
-      edge: typeof underModel === 'number' ? Math.round((underModel * 100 - netCost(underCost)) * 100) / 100 : undefined,
+      edge: typeof underModel === 'number' ? Math.round((underModel * 100 - netCost(underCost, tl)) * 100) / 100 : undefined,
     });
   }
 
@@ -490,17 +496,17 @@ export function analyzeGoals(
       marketType: 'btts', side: 'btts_yes',
       label: 'BTTS — Yes', isLowScoring: false,
       marketTicker: b.ticker, seriesTicker: match.bttsSeriesTicker ?? '', eventTicker: match.bttsEventTicker ?? '',
-      cost: yesCost, bid: b.yesBid, impliedProb: yesCost / 100,
+      cost: yesCost, fee: feeOf(b), bid: b.yesBid, impliedProb: yesCost / 100,
       modelProb: yesModel, rawModelProb: yesRaw,
-      edge: typeof yesModel === 'number' ? Math.round((yesModel * 100 - netCost(yesCost)) * 100) / 100 : undefined,
+      edge: typeof yesModel === 'number' ? Math.round((yesModel * 100 - netCost(yesCost, b)) * 100) / 100 : undefined,
     });
     picks.push({
       marketType: 'btts', side: 'btts_no',
       label: 'No BTTS', isLowScoring: true,
       marketTicker: b.ticker, seriesTicker: match.bttsSeriesTicker ?? '', eventTicker: match.bttsEventTicker ?? '',
-      cost: noCost, bid: 100 - b.yesAsk, impliedProb: noCost / 100,
+      cost: noCost, fee: feeOf(b), bid: 100 - b.yesAsk, impliedProb: noCost / 100,
       modelProb: noModel, rawModelProb: noRaw,
-      edge: typeof noModel === 'number' ? Math.round((noModel * 100 - netCost(noCost)) * 100) / 100 : undefined,
+      edge: typeof noModel === 'number' ? Math.round((noModel * 100 - netCost(noCost, b)) * 100) / 100 : undefined,
     });
   }
 
@@ -587,14 +593,15 @@ export function analyzeGoals(
 export function calculateGoalsStake(
   costCents: number,
   totalStakeDollars: number,
-  opts: { kalshiFee?: boolean } = {},
+  opts: { kalshiFee?: boolean; fee?: FeeSpec } = {},
 ): { contracts: number; totalCostCents: number; feeCents: number; expectedPayoutCents: number; profitIfWinCents: number } {
   const totalStakeCents = Math.round(totalStakeDollars * 100);
   if (costCents <= 0 || costCents >= 100) {
     return { contracts: 0, totalCostCents: 0, feeCents: 0, expectedPayoutCents: 0, profitIfWinCents: 0 };
   }
-  const feeFor = (n: number) => (opts.kalshiFee ? kalshiTakerFeeCents(n, costCents) : 0);
-  // Largest contract count whose cost INCLUDING the Kalshi fee stays within the stake (min 1).
+  const spec: FeeSpec | null = opts.fee ?? (opts.kalshiFee ? KALSHI_FEE : null);
+  const feeFor = (n: number) => (spec ? takerFeeCents(n, costCents, spec) : 0);
+  // Largest contract count whose cost INCLUDING the exchange taker fee stays within the stake (min 1).
   let contracts = Math.max(1, Math.floor(totalStakeCents / costCents));
   while (contracts > 1 && contracts * costCents + feeFor(contracts) > totalStakeCents) contracts--;
   const feeCents = feeFor(contracts);

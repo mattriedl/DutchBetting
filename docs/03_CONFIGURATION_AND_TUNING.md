@@ -72,15 +72,18 @@ cache 5 min.
 LLM model `gpt-5.4-mini` (string in each file's fetch body), Dixon-Coles `DC_RHO = -0.1`,
 `GRID_MAX = 10` goals (goals research).
 
-### Kalshi fees (`lib/kalshi-fees.ts`)
-Kalshi taker fee `roundUp(0.07 × contracts × P × (1 − P))` per leg (fee schedule effective 2026-07-07) is added to
-the recorded cost of every Kalshi bet (Goals, Correct Score, Soccer, weather Auto-Bet, AI Tracker Kalshi picks) and
-stored in `feeCents`, so net profit is after fees. Goals stake sizing keeps cost + fee within the stake. Polymarket:
-no fee. The *analysis* is net of fees too: weather Dutch odds/margins/viability/ratings (`lib/dutch-betting.ts`),
-Soccer favourite+draw margins, Kalshi Correct Score basket cost/margin/EV, Goals edges for Kalshi markets and AI
-Tracker EV all use `kalshiEffectiveCents(price)` = price + 0.07·P·(1−P) per contract. Stake sizing (uniform contracts,
-soccer pairs, correct-score units) also uses the effective price. Backtest and the Dashboard demo-pick tracker add the
-fee to the "ask" (taker) scenario only; the "bid" (resting limit) scenario pays no fee on climate series.
+### Exchange fees (`lib/trading-fees.ts`, `lib/kalshi-fees.ts`)
+Both exchanges charge takers `fee = contracts × rate × (P × (1 − P))^exponent`; makers pay nothing on soccer/climate.
+- **Kalshi:** rate 0.07 (fee schedule effective 2026-07-07).
+- **Polymarket:** per market from Gamma `feesEnabled` / `feeSchedule {rate, exponent}` (soccer = sports: 0.05, exponent 1);
+  default 0.05 when a market doesn't say.
+
+The app buys at the ask, so it pays the taker fee. Fees are added to the recorded cost of every bet (`feeCents` column on
+Goals, Correct Score, Polymarket Score, Soccer, Auto-Bet orders and AI Tracker picks), so net profit is after fees, and
+all opportunity analysis is net of fees: weather Dutch odds/margins/viability/ratings, Soccer favourite+draw margins,
+Kalshi and Polymarket score basket cost/margin/EV (server + in-page recompute), Goals edges (per market) and AI Tracker
+EV use `effectiveCents(price, fee)`. Stake sizing keeps cost + fees within the stake. Backtest and the Dashboard demo-pick
+tracker add the fee to the "ask" (taker) scenario only. The Value Tracker prices against bookmaker odds (no exchange fee).
 
 ### API clients
 - `api-football.ts`: `MIN_REQUEST_GAP_MS = 350` (~3 req/s; lowering it risks the provider's temporary

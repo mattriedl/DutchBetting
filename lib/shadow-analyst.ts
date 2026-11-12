@@ -25,7 +25,7 @@ import { researchGoalsMatch } from '@/lib/goals-research';
 import { getActiveCalibration } from '@/lib/calibration';
 import { kalshiPublicFetch } from '@/lib/kalshi-api';
 import { fetchFinalScoreByTeams } from '@/lib/api-football';
-import { kalshiEffectiveCents } from '@/lib/kalshi-fees';
+import { effectiveCents, KALSHI_FEE, POLYMARKET_DEFAULT_FEE } from '@/lib/trading-fees';
 
 /** Fixed demo stake per shadow pick, so ROI is comparable across picks. */
 export const SHADOW_STAKE_DOLLARS = 10;
@@ -150,14 +150,16 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number; 
         continue;
       }
 
-      const stake = calculateGoalsStake(pick.cost, SHADOW_STAKE_DOLLARS, { kalshiFee: app === 'goals' });
+      // Taker fee for this market (Kalshi 7%; Polymarket per market) — cost and EV are net of it.
+      const pickFee = pick.fee ?? (app === 'goals' ? KALSHI_FEE : POLYMARKET_DEFAULT_FEE);
+      const stake = calculateGoalsStake(pick.cost, SHADOW_STAKE_DOLLARS, { fee: pickFee });
       if (stake.contracts <= 0) {
         summary.skippedNoEdge++;
         continue;
       }
 
       // EV per contract in cents: p*100 - cost.
-      const evPerContract = prob * 100 - (app === 'goals' ? kalshiEffectiveCents(pick.cost) : pick.cost);
+      const evPerContract = prob * 100 - effectiveCents(pick.cost, pickFee);
 
       const data = {
         userId: opts.userId,
@@ -184,7 +186,7 @@ export async function runShadowAnalysis(opts: { userId: string; limit?: number; 
         lowScore: research.lowScoring?.dataAvailable ? research.lowScoring.score : null,
         rating: analysis.rating,
         contracts: stake.contracts,
-        stakeCents: stake.totalCostCents, // includes the Kalshi fee for Kalshi picks
+        stakeCents: stake.totalCostCents, // includes the exchange taker fee
         feeCents: stake.feeCents,
         payoutIfWinCents: stake.expectedPayoutCents,
         researchNote: [
